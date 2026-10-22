@@ -2,7 +2,7 @@
 
 One web platform that many schools join. Each school gets its own private portal, run by its own admin, where teachers, students and parents each see only what concerns them.
 
-This repository holds the **core platform** (build step 2 of the spec) and the **academic and fee features** (build step 3):
+This repository holds the **core platform** (build step 2 of the spec), the **academic and fee features** (build step 3), and **quizzes and the student and parent dashboards** (part of build step 4):
 
 - **School onboarding** by the platform owner, with the first admin invited by email. Schools can be suspended (read-only) or archived.
 - **School data kept separate** by PostgreSQL row-level security, not just application code.
@@ -15,9 +15,12 @@ This repository holds the **core platform** (build step 2 of the spec) and the *
 - **Homework**: teachers post to sections and subjects they teach, with attachments (served only through the API, after a permission check). Students mark it done; parents see each child's list.
 - **Tests and report cards**: exam terms, a grading scale (percentage bands, with a default), tests per subject per section, a marks grid for teachers, results with grade, class average and highest. Admins publish results, which locks marks. Report cards combine a term's marks, attendance and teacher remarks; students and parents see them once published, and can print them or save them as PDF from the browser.
 - **Fees**: fee heads, fee structures per class with installments, dues billed to each enrolled student, discounts and one-off charges, payments with numbered receipts (oldest dues paid first), reversals instead of edits, and for every student: total due, paid, remaining and overdue. Admin reports: collected today, this month and this year, outstanding by class, and an overdue list with parents' contacts. Payments are recorded by the school office; online payment comes later.
+- **After-class quizzes**: a teacher sets a short quiz on the topic taught that day (multiple choice or true/false, with marks per question and an open and close time) for a section and subject they teach. Questions are saved to the teacher's own question bank, tagged by subject and topic, to reuse later. Students take it once while it is open and get their score straight away; the right answers show after it closes (or when the teacher closes it early). Teachers see each student's score and which questions most of the class got wrong. Parents see their children's scores. Once anyone has taken a quiz its questions are fixed and it cannot be removed.
+- **Student home screen**: today's classes, quizzes to take, homework due this week (and overdue), latest test results with report card links, recent quiz scores and attendance.
+- **Parent home screen**: for each child, today's attendance and this month's percentage, homework due, latest marks and report cards, quiz scores, and fees: total, paid, remaining, overdue and the next installment.
 - **Web app** for all of the above, mobile-first.
 
-Quizzes, student and parent dashboards and notifications come in the next build step.
+Notifications, announcements and the admin and teacher home screens come next.
 
 ## Layout
 
@@ -33,6 +36,8 @@ backend/   Django 6 + Django REST Framework API
   apps/homework/   homework, attachments, done marks
   apps/exams/      grading scales, exam terms, tests, marks, results, report cards
   apps/fees/       fee heads and structures, dues, payments, receipts, balances
+  apps/quizzes/    topics, question bank, quizzes, attempts and scoring
+  apps/dashboards/ the student and parent home screens
   tests/           API and isolation tests
 web/       Next.js web app
 ```
@@ -50,7 +55,7 @@ cd backend
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 python manage.py migrate        # settings come from environment variables; see .env.example
-python manage.py seed_demo      # optional: two demo schools with people, a timetable, attendance, marks and fees
+python manage.py seed_demo      # optional: two demo schools with people, a timetable, attendance, marks, fees and quizzes
 python manage.py runserver      # http://localhost:8000
 
 # 3. Web app, in another terminal
@@ -87,7 +92,7 @@ The tests need the database role from `backend/db/init.sql` (it may create a tes
 - The policies are applied after every `migrate` (`apps/tenancy/rls.py`), so tables added by later features are covered automatically. A test fails if any school table is missing its policy.
 - On top of that, every endpoint checks the user's role in the current school and narrows rows to what the role allows: teachers see students of the sections they teach, students see themselves, parents see their children.
 - The platform owner sees schools and head counts, not student records. Reading across schools goes through `audit.platform_access`, which logs it. The audit log is append-only at the database level.
-- `tests/test_isolation.py` and `tests/test_isolation_academic.py` log into school A and try to read, change and link school B's data through every endpoint.
+- `tests/test_isolation.py`, `tests/test_isolation_academic.py` and `tests/test_dashboards.py` log into school A and try to read, change and link school B's data through every endpoint.
 - Payments and their allocations can never be updated or deleted: a database trigger refuses it, so a mistake is undone with a reversing entry and totals always reconcile.
 - Marks, attendance changes after the day, fee changes and payments are written to the audit log.
 
@@ -107,6 +112,8 @@ All paths are under `/api/`, with or without a trailing slash. School endpoints 
 | Homework | `homework/` (`?section=`, `?student=`, `?upcoming=true`, `?due_from=`, `?due_to=`), `…/<id>/attachments`, `…/<id>/done` (POST or DELETE), `…/<id>/statuses` |
 | Tests | `grade-scales/`, `exam-terms/` (+ `create-exams`), `exams/` (+ `marks` GET/PUT, `publish`, `unpublish`, `results`), `results/students/<id>` |
 | Report cards | `report-cards/section?exam_term=&section=`, `report-cards/remarks` (PUT), `report-cards/publish` (POST, DELETE to unpublish), `report-cards/students/<id>/<term_id>` |
+| Quizzes | `quizzes/` (`?state=` open, upcoming, closed or pending, `?section=`, `?student=`, `?mine=true`; + `paper`, `submit`, `results`, `close`), `question-bank/`, `quiz-topics/` |
+| Home screens | `dashboard/student`, `dashboard/parent` |
 | Fees | `fee-heads/`, `fee-structures/` (+ `generate-dues`), `fee-dues/`, `payments/` (+ `reverse`, `receipt`), `fees/students/<id>`, `fees/balances`, `fees/defaulters`, `fees/summary` |
 
 Money goes in and out of the API as decimal strings with two places ("1500.00") and is stored as whole paise or cents.

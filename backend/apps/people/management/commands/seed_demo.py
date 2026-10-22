@@ -9,6 +9,7 @@ from datetime import date, time, timedelta
 
 from django.core.management.base import BaseCommand
 from django.db import transaction
+from django.utils import timezone
 
 from apps.academics.models import AcademicYear, SchoolClass, Section, SectionSubject, Subject
 from apps.accounts import services
@@ -19,6 +20,7 @@ from apps.exams.models import Exam, ExamTerm, Mark
 from apps.fees import services as fee_services
 from apps.fees.models import FeeHead, FeeStructure, Payment
 from apps.homework.models import Homework
+from apps.quizzes.models import Question, Quiz, QuizAnswer, QuizAttempt, QuizQuestion, Topic
 from apps.tenancy.context import school_context, school_today
 from apps.timetable.models import Period, TimetableEntry
 from apps.tenancy.models import School
@@ -93,7 +95,7 @@ class Command(BaseCommand):
         self.seed_academics(year, admin, teacher, subjects)
 
     def seed_academics(self, year, admin, teacher, subjects):
-        """A timetable, a week of attendance, homework, a test and fees for Grade 5-A."""
+        """A timetable, a week of attendance, homework, a test, quizzes and fees for Grade 5-A."""
         today = school_today()
         section = Section.objects.get(academic_year=year, school_class__name="Grade 5", name="A")
         slots = [(time(8, 0), time(8, 45)), (time(8, 45), time(9, 30)), (time(9, 45), time(10, 30)),
@@ -147,3 +149,39 @@ class Command(BaseCommand):
         if enrollments and not Payment.objects.filter(student=enrollments[0].student).exists():
             fee_services.record_payment(student=enrollments[0].student, year=year, amount=1200000,
                                         paid_on=today, mode="cash", received_by=admin)
+        self.seed_quizzes(section, teacher, subjects[1], enrollments)
+
+    def seed_quizzes(self, section, teacher, maths, enrollments):
+        """An open quiz for today's lesson, and yesterday's, closed and taken by most of the class."""
+        if Quiz.objects.filter(section=section).exists():
+            return
+        today, now = school_today(), timezone.now()
+        topic, _ = Topic.objects.get_or_create(subject=maths, school_class=section.school_class, name="Fractions")
+        bank = [
+            ("mcq", "What is 1/2 + 1/4?", ["3/4", "2/6", "1/8", "1/6"], 0),
+            ("true_false", "1/3 is bigger than 1/2.", ["True", "False"], 1),
+            ("mcq", "Which fraction equals 2/4?", ["1/4", "1/2", "4/2"], 1),
+            ("mcq", "What is 3/5 of 10?", ["3", "5", "6", "15"], 2),
+            ("true_false", "5/5 is equal to 1.", ["True", "False"], 0),
+        ]
+        questions = [Question.objects.create(subject=maths, topic=topic, type=t, text=text, options=opts,
+                                             correct_option=right, teacher=teacher, created_by=teacher.user)
+                     for t, text, opts, right in bank]
+
+        def quiz(title, taught_on, opens, closes, items):
+            q = Quiz.objects.create(section=section, subject=maths, topic=topic, teacher=teacher, title=title,
+                                    taught_on=taught_on, opens_at=opens, closes_at=closes, created_by=teacher.user)
+            for order, question in enumerate(items, start=1):
+                QuizQuestion.objects.create(quiz=q, question=question, order=order, marks=1)
+            return q
+
+        quiz("Fractions: quick check", today, now - timedelta(minutes=5), now + timedelta(days=1), questions[:3])
+        done = quiz("Fractions of a number", today - timedelta(days=1), now - timedelta(days=1),
+                    now - timedelta(hours=1), questions[2:])
+        for n, e in enumerate(enrollments[:-1], start=1):
+            picks = [q.correct_option if (n + i) % 3 else 0 for i, q in enumerate(questions[2:])]
+            score = sum(1 for q, p in zip(questions[2:], picks) if p == q.correct_option)
+            attempt = QuizAttempt.objects.create(quiz=done, student=e.student, started_at=now - timedelta(hours=20),
+                                                 submitted_at=now - timedelta(hours=20), score=score, max_score=3)
+            for q, p in zip(questions[2:], picks):
+                QuizAnswer.objects.create(attempt=attempt, question=q, answer=p, is_correct=p == q.correct_option)

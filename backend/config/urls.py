@@ -9,7 +9,9 @@ from apps.attendance import views as attendance
 from apps.exams import views as exams
 from apps.fees import views as fees
 from apps.homework import views as homework
+from apps.dashboards import views as dashboards
 from apps.people import imports, views as people
+from apps.quizzes import views as quizzes
 from apps.tenancy import views as tenancy
 from apps.timetable import views as timetable
 
@@ -39,6 +41,9 @@ router.register("fee-heads", fees.FeeHeadViewSet, basename="fee-head")
 router.register("fee-structures", fees.FeeStructureViewSet, basename="fee-structure")
 router.register("fee-dues", fees.DueViewSet, basename="fee-due")
 router.register("payments", fees.PaymentViewSet, basename="payment")
+router.register("quizzes", quizzes.QuizViewSet, basename="quiz")
+router.register("quiz-topics", quizzes.TopicViewSet, basename="quiz-topic")
+router.register("question-bank", quizzes.QuestionBankViewSet, basename="question-bank")
 
 auth = [
     path("login", accounts.LoginView.as_view(), name="login"),
@@ -55,6 +60,8 @@ api = [
     path("auth/", include(auth)),
     path("setup-status", people.SetupStatusView.as_view(), name="setup-status"),
     path("my-children", people.MyChildrenView.as_view(), name="my-children"),
+    path("dashboard/student", dashboards.StudentDashboardView.as_view(), name="dashboard-student"),
+    path("dashboard/parent", dashboards.ParentDashboardView.as_view(), name="dashboard-parent"),
     path("imports/students", imports.StudentImportView.as_view(), name="import-students"),
     path("imports/teachers", imports.TeacherImportView.as_view(), name="import-teachers"),
     path("attendance/sheet", attendance.AttendanceSheetView.as_view(), name="attendance-sheet"),

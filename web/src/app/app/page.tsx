@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { ParentDashboard, StudentDashboard } from "@/components/Dashboards";
 import { Badge, ButtonLink, Card, Empty, Loading, PageHeader } from "@/components/ui";
 import { Page } from "@/lib/api";
 import { useSession } from "@/lib/session";
-import { Section, SetupStatus, Student, Teacher } from "@/lib/types";
+import { SetupStatus, Teacher } from "@/lib/types";
 import { rows, useApi } from "@/lib/useApi";
 
 export default function SchoolHome() {
@@ -15,8 +16,8 @@ export default function SchoolHome() {
       <div className="space-y-5">
         {hasRole("admin") && <AdminHome />}
         {hasRole("teacher") && <TeacherHome />}
-        {hasRole("student") && <StudentHome />}
-        {hasRole("parent") && <ParentHome />}
+        {hasRole("student") && <StudentDashboard />}
+        {hasRole("parent") && <ParentDashboard />}
       </div>
     </>
   );
@@ -68,7 +69,7 @@ function TeacherHome() {
   if (!data) return <Loading />;
   if (!me) return null;
   return (
-    <Card title="Your classes" actions={<div className="flex gap-2"><ButtonLink href="/app/attendance">Mark attendance</ButtonLink><ButtonLink href="/app/students" variant="secondary">Your students</ButtonLink></div>}>
+    <Card title="Your classes" actions={<div className="flex gap-2"><ButtonLink href="/app/attendance">Mark attendance</ButtonLink><ButtonLink href="/app/quizzes" variant="secondary">Set a quiz</ButtonLink><ButtonLink href="/app/students" variant="secondary">Your students</ButtonLink></div>}>
       {me.teaches.length === 0 && me.class_teacher_of.length === 0 ? (
         <Empty>You have no classes assigned yet. Your school admin assigns them.</Empty>
       ) : (
@@ -78,52 +79,6 @@ function TeacherHome() {
           ))}
           {me.teaches.map((t) => (
             <li key={`${t.section}-${t.subject}`} className="flex justify-between rounded-lg border border-line px-3 py-2"><span>{t.section_name}</span><span className="text-soft">{t.subject_name}</span></li>
-          ))}
-        </ul>
-      )}
-    </Card>
-  );
-}
-
-function StudentHome() {
-  const { data } = useApi<Page<Student>>("students/");
-  const { data: sections } = useApi<Page<Section>>("sections/");
-  const me = rows(data)[0];
-  if (!data) return <Loading />;
-  if (!me) return null;
-  const section = rows(sections)[0];
-  return (
-    <Card title="Your class">
-      <dl className="grid grid-cols-2 gap-3 text-sm">
-        <div><dt className="text-soft">Class</dt><dd className="font-medium">{me.current_enrollment?.section_name ?? "Not assigned"}</dd></div>
-        <div><dt className="text-soft">Roll number</dt><dd className="font-medium">{me.current_enrollment?.roll_no ?? "-"}</dd></div>
-        <div><dt className="text-soft">Admission no.</dt><dd className="font-medium">{me.admission_no}</dd></div>
-        <div><dt className="text-soft">Class teacher</dt><dd className="font-medium">{section?.class_teacher_name ?? "-"}</dd></div>
-      </dl>
-      <div className="mt-4 flex flex-wrap gap-2">
-        <ButtonLink href={`/app/students/${me.id}`}>Attendance, results and fees</ButtonLink>
-        <ButtonLink href="/app/homework" variant="secondary">Homework</ButtonLink>
-        <ButtonLink href="/app/timetable" variant="secondary">Timetable</ButtonLink>
-      </div>
-    </Card>
-  );
-}
-
-function ParentHome() {
-  const { data } = useApi<Student[]>("my-children");
-  if (!data) return <Loading />;
-  return (
-    <Card title="Your children">
-      {data.length === 0 ? (
-        <Empty>No children are linked to your account yet. Ask the school office.</Empty>
-      ) : (
-        <ul className="grid gap-3 sm:grid-cols-2">
-          {data.map((c) => (
-            <li key={c.id} className="rounded-lg border border-line p-3 text-sm">
-              <div className="font-medium">{c.name}</div>
-              <div className="text-soft">{c.current_enrollment?.section_name ?? "No class yet"} · Adm. {c.admission_no}</div>
-              <Link href={`/app/students/${c.id}`} className="mt-2 inline-block text-sm font-medium text-brand">Attendance, homework, marks and fees</Link>
-            </li>
           ))}
         </ul>
       )}

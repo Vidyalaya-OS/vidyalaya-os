@@ -267,3 +267,82 @@ export type FeeStatement = {
   payments: Payment[];
 };
 export type BalanceRow = FeeTotals & { student: string; name: string; admission_no: string; section_name: string; roll_no: number | null };
+
+export type QuizState = "upcoming" | "open" | "closed";
+export type Quiz = {
+  id: string;
+  section: string;
+  section_name: string;
+  subject: string;
+  subject_name: string;
+  topic_name: string | null;
+  teacher_name: string | null;
+  title: string;
+  taught_on: string;
+  opens_at: string;
+  closes_at: string;
+  state: QuizState;
+  question_count: number;
+  max_score: number;
+  attempt_count?: number;
+  student_count?: number;
+  my_attempt: { score: number; max_score: number; submitted_at: string } | null;
+};
+export type QuizPaperQuestion = {
+  id: string;
+  type: "mcq" | "true_false";
+  text: string;
+  options: string[];
+  marks: number;
+  correct_option?: number;
+  your_answer?: number | null;
+  is_correct?: boolean;
+};
+export type QuizPaper = {
+  quiz: Quiz;
+  state: QuizState;
+  answers_shown: boolean;
+  attempt: { score: number; max_score: number; submitted_at: string } | null;
+  questions: QuizPaperQuestion[];
+};
+export type QuizResults = {
+  quiz: Quiz;
+  attempted: number;
+  students: number;
+  average_score: number | null;
+  max_score: number;
+  scores: { student: string; name: string; roll_no: number | null; attempted: boolean; score: number | null; max_score: number | null; submitted_at: string | null }[];
+  questions: { id: string; order: number; text: string; options: string[]; correct_option: number; marks: number; correct: number; wrong: number; percent_correct: number | null; choices: number[] }[];
+  most_missed: string[];
+};
+export type BankQuestion = { id: string; subject: string; subject_name: string; topic: string | null; topic_name: string | null; type: "mcq" | "true_false"; text: string; options: string[]; correct_option: number };
+
+export type DashQuiz = { id: string; title: string; subject_name: string; topic_name: string | null; opens_at: string; closes_at: string; state: QuizState; question_count: number; max_score: number };
+export type DashScore = DashQuiz & { score: number; max_score: number; percentage: number | null; submitted_at: string };
+export type DashChildProfile = { id: string; name: string; admission_no: string; section: string | null; section_name: string | null; roll_no: number | null; class_teacher: string | null };
+export type DashHomework = { items: { id: string; title: string; subject_name: string; due_date: string; overdue: boolean }[]; pending: number; overdue: number };
+export type DashTests = {
+  latest: { exam: string; subject_name: string; exam_term: string; exam_term_name: string; date: string | null; max_marks: string; marks_obtained: string | null; is_absent: boolean; percentage: number | null; grade: string | null; class_average: number | null }[];
+  report_cards: { exam_term: string; exam_term_name: string; published_at: string }[];
+};
+export type DashAttendance = { today: AttendanceStatus | null; month: string; month_summary: AttendanceSummary; year_summary: AttendanceSummary };
+export type DashQuizzes = { pending: DashQuiz[]; upcoming: DashQuiz[]; recent_scores: DashScore[] };
+export type StudentDashboard = {
+  today: string;
+  day_name: string;
+  student: DashChildProfile;
+  timetable: { id: string; period_name: string; start_time: string; end_time: string; subject_name: string; teacher_name: string | null; room: string }[];
+  homework: DashHomework;
+  quizzes: DashQuizzes;
+  tests: DashTests;
+  attendance: DashAttendance;
+};
+export type ChildSummary = {
+  student: DashChildProfile;
+  attendance: DashAttendance;
+  homework: DashHomework;
+  tests: DashTests;
+  quizzes: DashQuizzes;
+  fees: (FeeTotals & { academic_year_name: string; next_due: { due: string; name: string; due_date: string; remaining: string } | null }) | null;
+  currency: string;
+};

@@ -36,3 +36,15 @@ export function num(value: string | number | null | undefined) {
   if (value == null || value === "") return "-";
   return String(Number(value));
 }
+
+/** A date and time, like "22 Oct, 4:30 pm". */
+export function formatDateTime(iso: string | null | undefined) {
+  if (!iso) return "-";
+  return new Date(iso).toLocaleString(undefined, { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
+}
+
+/** A Date as the value of a datetime-local input (local time, to the minute). */
+export function toLocalInput(d: Date) {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}

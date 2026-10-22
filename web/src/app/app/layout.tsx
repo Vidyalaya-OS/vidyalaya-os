@@ -12,6 +12,7 @@ const NAV: { href: string; label: string; roles: Role[] }[] = [
   { href: "/app/timetable", label: "Timetable", roles: ["admin", "teacher", "student", "parent"] },
   { href: "/app/attendance", label: "Attendance", roles: ["admin", "teacher"] },
   { href: "/app/homework", label: "Homework", roles: ["admin", "teacher", "student", "parent"] },
+  { href: "/app/quizzes", label: "Quizzes", roles: ["admin", "teacher", "student", "parent"] },
   { href: "/app/exams", label: "Tests & marks", roles: ["admin", "teacher"] },
   { href: "/app/report-cards", label: "Report cards", roles: ["admin", "teacher"] },
   { href: "/app/fees", label: "Fees", roles: ["admin"] },
