@@ -76,3 +76,17 @@ def bypass_rls():
     finally:
         _bypass.set(previous)
         _set_db("app.bypass_rls", "on" if previous else "off")
+
+
+def school_today():
+    """Today's date in the current school's time zone."""
+    from zoneinfo import ZoneInfo
+
+    from django.utils import timezone
+
+    school = _current_school.get()
+    try:
+        tz = ZoneInfo(school.timezone) if school is not None and school.timezone else None
+    except (KeyError, ValueError):
+        tz = None
+    return timezone.localdate(timezone=tz) if tz else timezone.localdate()

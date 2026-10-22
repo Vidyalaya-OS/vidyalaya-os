@@ -82,3 +82,61 @@ def visible_students(request):
         if guardian:
             q |= Q(guardian_links__guardian=guardian)
     return qs.filter(q).distinct()
+
+
+def teacher_subject_pairs(teacher):
+    """(section_id, subject_id) pairs a teacher teaches."""
+    from apps.academics.models import SectionSubject
+
+    if teacher is None:
+        return set()
+    return set(SectionSubject.objects.filter(teacher=teacher).values_list("section_id", "subject_id"))
+
+
+def class_teacher_section_ids(teacher):
+    from apps.academics.models import Section
+
+    if teacher is None:
+        return set()
+    return set(Section.objects.filter(class_teacher=teacher).values_list("id", flat=True))
+
+
+def own_student_ids(request):
+    """The student's own record and a parent's children."""
+    ids = set()
+    if has_role(request, Role.STUDENT):
+        student = student_for(request)
+        if student:
+            ids.add(student.id)
+    if has_role(request, Role.PARENT):
+        guardian = guardian_for(request)
+        if guardian:
+            ids |= set(guardian.child_links.values_list("student_id", flat=True))
+    return ids
+
+
+def can_manage_section(request, section_id):
+    """Admins, and teachers who teach or are class teacher of the section."""
+    if has_role(request, Role.ADMIN):
+        return True
+    return has_role(request, Role.TEACHER) and section_id in teacher_section_ids(teacher_for(request))
+
+
+def can_teach(request, section_id, subject_id):
+    """Admins, the subject's teacher in that section, or the section's class teacher."""
+    if has_role(request, Role.ADMIN):
+        return True
+    if not has_role(request, Role.TEACHER):
+        return False
+    teacher = teacher_for(request)
+    return (section_id, subject_id) in teacher_subject_pairs(teacher) or section_id in class_teacher_section_ids(
+        teacher
+    )
+
+
+def active_enrollments(section_id):
+    return (
+        Enrollment.objects.filter(section_id=section_id, status=Enrollment.Status.ACTIVE)
+        .select_related("student__user")
+        .order_by("roll_no", "student__user__name")
+    )

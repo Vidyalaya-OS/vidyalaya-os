@@ -2,6 +2,7 @@
 
 import { useParams } from "next/navigation";
 import { useState } from "react";
+import { StudentRecord } from "@/components/StudentRecord";
 import { Alert, Badge, Button, Card, DataTable, Field, Loading, PageHeader, Select, statusTone } from "@/components/ui";
 import { api, ApiError, Page } from "@/lib/api";
 import { useSession } from "@/lib/session";
@@ -37,6 +38,7 @@ export default function StudentPage() {
     <>
       <PageHeader title={s.name} subtitle={`Admission no. ${s.admission_no} · ${s.current_enrollment?.section_name ?? "No section"}`} actions={<Badge tone={statusTone(s.status)}>{s.status}</Badge>} />
       {notice && <div className="mb-4"><Alert tone={notice.tone}>{notice.text}</Alert></div>}
+      {!isAdmin && <div className="mb-6"><StudentRecord studentId={s.id} /></div>}
       <div className="grid gap-5 lg:grid-cols-2">
         <Card title="Details">
           {isAdmin ? <EditStudent student={s} onSaved={() => { setNotice({ tone: "success", text: "Saved." }); reloadAll(); }} /> : (
@@ -91,6 +93,7 @@ export default function StudentPage() {
       {isAdmin && s.login_status === "invited" && (s.email || s.phone) && (
         <Button variant="ghost" className="mt-4" onClick={() => run(() => api(`students/${s.id}/resend-invite/`, { method: "POST" }), "Invite sent again.")}>Resend login invite</Button>
       )}
+      {isAdmin && <StudentRecord studentId={s.id} />}
     </>
   );
 }

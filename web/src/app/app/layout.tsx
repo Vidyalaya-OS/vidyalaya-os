@@ -9,6 +9,12 @@ import { ROLE_LABELS, useSession } from "@/lib/session";
 
 const NAV: { href: string; label: string; roles: Role[] }[] = [
   { href: "/app", label: "Home", roles: ["admin", "teacher", "student", "parent"] },
+  { href: "/app/timetable", label: "Timetable", roles: ["admin", "teacher", "student", "parent"] },
+  { href: "/app/attendance", label: "Attendance", roles: ["admin", "teacher"] },
+  { href: "/app/homework", label: "Homework", roles: ["admin", "teacher", "student", "parent"] },
+  { href: "/app/exams", label: "Tests & marks", roles: ["admin", "teacher"] },
+  { href: "/app/report-cards", label: "Report cards", roles: ["admin", "teacher"] },
+  { href: "/app/fees", label: "Fees", roles: ["admin"] },
   { href: "/app/setup", label: "Classes & subjects", roles: ["admin"] },
   { href: "/app/students", label: "Students", roles: ["admin", "teacher"] },
   { href: "/app/teachers", label: "Teachers", roles: ["admin"] },
@@ -36,7 +42,7 @@ export default function SchoolLayout({ children }: { children: React.ReactNode }
 
   return (
     <div className="min-h-screen">
-      <header className="sticky top-0 z-10 border-b border-line bg-surface">
+      <header className="sticky top-0 z-10 border-b border-line bg-surface print:hidden">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3">
           <div className="min-w-0">
             <Link href="/app" className="block truncate font-semibold">{school.school.name}</Link>
@@ -76,7 +82,7 @@ export default function SchoolLayout({ children }: { children: React.ReactNode }
           </ul>
         </nav>
       </header>
-      <main className="mx-auto max-w-6xl px-4 py-6">
+      <main className="mx-auto max-w-6xl px-4 py-6 print:max-w-none print:p-0">
         {school.school.status === "suspended" && (
           <div className="mb-4"><Alert tone="info">This school is suspended. You can look, but changes are switched off.</Alert></div>
         )}

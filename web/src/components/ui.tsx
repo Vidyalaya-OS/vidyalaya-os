@@ -209,3 +209,54 @@ export function DataTable<T>({
     </>
   );
 }
+
+/** A row of tab buttons; the parent keeps which one is open. */
+export function Tabs<T extends string>({ tabs, value, onChange }: { tabs: { key: T; label: string }[]; value: T; onChange: (key: T) => void }) {
+  return (
+    <div className="mb-4 flex gap-1 overflow-x-auto border-b border-line" role="tablist">
+      {tabs.map((t) => (
+        <button
+          key={t.key}
+          role="tab"
+          aria-selected={value === t.key}
+          onClick={() => onChange(t.key)}
+          className={cx(
+            "whitespace-nowrap border-b-2 px-3 py-2 text-sm",
+            value === t.key ? "border-brand font-medium text-brand" : "border-transparent text-soft hover:text-ink",
+          )}
+        >
+          {t.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+type TextAreaProps = React.TextareaHTMLAttributes<HTMLTextAreaElement> & { label: string; error?: string };
+
+export function TextArea({ label, error, className, ...rest }: TextAreaProps) {
+  return (
+    <label className={cx("block text-sm", className)}>
+      <span className="mb-1 block font-medium text-ink">{label}</span>
+      <textarea
+        className={cx(
+          "block min-h-20 w-full rounded-lg border bg-surface px-3 py-2 text-base text-ink outline-none focus:ring-2 focus:ring-brand/40 sm:text-sm",
+          error ? "border-red-500" : "border-line",
+        )}
+        {...rest}
+      />
+      {error && <span className="mt-1 block text-xs text-red-600 dark:text-red-400">{error}</span>}
+    </label>
+  );
+}
+
+export function Stat({ label, value, hint, tone }: { label: string; value: React.ReactNode; hint?: string; tone?: "good" | "warn" | "bad" }) {
+  const color = tone === "bad" ? "text-red-700 dark:text-red-300" : tone === "warn" ? "text-amber-700 dark:text-amber-300" : tone === "good" ? "text-green-700 dark:text-green-300" : "text-ink";
+  return (
+    <div className="rounded-xl border border-line bg-surface p-4">
+      <div className="text-xs uppercase tracking-wide text-soft">{label}</div>
+      <div className={cx("mt-1 text-xl font-semibold tabular-nums", color)}>{value}</div>
+      {hint && <div className="mt-0.5 text-xs text-soft">{hint}</div>}
+    </div>
+  );
+}

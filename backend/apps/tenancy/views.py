@@ -1,4 +1,4 @@
-from django.db.models import Count, Q
+from django.db.models import Count, Q, Sum
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -12,7 +12,10 @@ from .serializers import PlatformSchoolSerializer, SchoolCreateSerializer, Schoo
 
 
 def usage_by_school(actor):
-    """Head counts per school. Reading across schools is logged."""
+    """Head counts and this year's fee collection per school. Reading
+    across schools is logged."""
+    from apps.fees.models import Payment
+    from apps.fees.money import to_major
     from apps.people.models import Student, Teacher
 
     usage = {}
@@ -24,9 +27,13 @@ def usage_by_school(actor):
         admins = SchoolMembership.objects.filter(role=Role.ADMIN, is_active=True)
         for row in admins.values("school").annotate(n=Count("id")):
             usage.setdefault(row["school"], {})["admins"] = row["n"]
+        payments = Payment.objects.filter(academic_year__is_current=True)
+        for row in payments.values("school").annotate(n=Sum("amount")):
+            usage.setdefault(row["school"], {})["fees_collected"] = to_major(row["n"])
     for counts in usage.values():
         for key in ("students", "teachers", "admins"):
             counts.setdefault(key, 0)
+        counts.setdefault("fees_collected", "0.00")
     return usage
 
 

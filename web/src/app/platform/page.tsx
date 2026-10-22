@@ -12,7 +12,7 @@ type School = {
   board: string;
   plan: string;
   status: "active" | "suspended" | "archived";
-  usage: { students: number; teachers: number; admins: number };
+  usage: { students: number; teachers: number; admins: number; fees_collected: string };
 };
 
 export default function PlatformHome() {
@@ -58,6 +58,7 @@ export default function PlatformHome() {
               { header: "Plan", cell: (s) => s.plan },
               { header: "Students", cell: (s) => s.usage.students },
               { header: "Teachers", cell: (s) => s.usage.teachers },
+              { header: "Fees this year", cell: (s) => Number(s.usage.fees_collected).toLocaleString(undefined, { minimumFractionDigits: 2 }) },
               { header: "Status", cell: (s) => <Badge tone={statusTone(s.status)}>{s.status}</Badge> },
               {
                 header: "Actions",

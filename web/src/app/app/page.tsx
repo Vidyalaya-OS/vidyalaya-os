@@ -57,7 +57,7 @@ function AdminHome() {
           </li>
         ))}
       </ol>
-      {data.complete && <p className="mt-3 text-sm text-soft">Setup is complete. Fees, timetable and attendance arrive in the next release.</p>}
+      {data.complete && <p className="mt-3 text-sm text-soft">Setup is complete. Next: build the <Link className="text-brand" href="/app/timetable">timetable</Link> and set up <Link className="text-brand" href="/app/fees">fees</Link>.</p>}
     </Card>
   );
 }
@@ -68,7 +68,7 @@ function TeacherHome() {
   if (!data) return <Loading />;
   if (!me) return null;
   return (
-    <Card title="Your classes" actions={<ButtonLink href="/app/students" variant="secondary">Your students</ButtonLink>}>
+    <Card title="Your classes" actions={<div className="flex gap-2"><ButtonLink href="/app/attendance">Mark attendance</ButtonLink><ButtonLink href="/app/students" variant="secondary">Your students</ButtonLink></div>}>
       {me.teaches.length === 0 && me.class_teacher_of.length === 0 ? (
         <Empty>You have no classes assigned yet. Your school admin assigns them.</Empty>
       ) : (
@@ -100,7 +100,11 @@ function StudentHome() {
         <div><dt className="text-soft">Admission no.</dt><dd className="font-medium">{me.admission_no}</dd></div>
         <div><dt className="text-soft">Class teacher</dt><dd className="font-medium">{section?.class_teacher_name ?? "-"}</dd></div>
       </dl>
-      <p className="mt-4 text-sm text-soft">Your timetable, homework, tests and quizzes will show up here.</p>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <ButtonLink href={`/app/students/${me.id}`}>Attendance, results and fees</ButtonLink>
+        <ButtonLink href="/app/homework" variant="secondary">Homework</ButtonLink>
+        <ButtonLink href="/app/timetable" variant="secondary">Timetable</ButtonLink>
+      </div>
     </Card>
   );
 }
@@ -118,7 +122,7 @@ function ParentHome() {
             <li key={c.id} className="rounded-lg border border-line p-3 text-sm">
               <div className="font-medium">{c.name}</div>
               <div className="text-soft">{c.current_enrollment?.section_name ?? "No class yet"} · Adm. {c.admission_no}</div>
-              <p className="mt-2 text-xs text-soft">Attendance, homework, marks and fees will appear here.</p>
+              <Link href={`/app/students/${c.id}`} className="mt-2 inline-block text-sm font-medium text-brand">Attendance, homework, marks and fees</Link>
             </li>
           ))}
         </ul>

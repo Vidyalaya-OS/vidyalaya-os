@@ -38,7 +38,8 @@ class PlatformSchoolSerializer(SchoolSerializer):
         fields = SchoolSerializer.Meta.fields + ["usage"]
 
     def get_usage(self, school):
-        return self.context.get("usage", {}).get(school.id, {"students": 0, "teachers": 0, "admins": 0})
+        empty = {"students": 0, "teachers": 0, "admins": 0, "fees_collected": "0.00"}
+        return self.context.get("usage", {}).get(school.id, empty)
 
 
 class SchoolCreateSerializer(SchoolSerializer):

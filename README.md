@@ -2,7 +2,7 @@
 
 One web platform that many schools join. Each school gets its own private portal, run by its own admin, where teachers, students and parents each see only what concerns them.
 
-This repository holds the **core platform** (build step 2 of the spec):
+This repository holds the **core platform** (build step 2 of the spec) and the **academic and fee features** (build step 3):
 
 - **School onboarding** by the platform owner, with the first admin invited by email. Schools can be suspended (read-only) or archived.
 - **School data kept separate** by PostgreSQL row-level security, not just application code.
@@ -10,9 +10,14 @@ This repository holds the **core platform** (build step 2 of the spec):
 - **Five roles**: platform owner, school admin, teacher, student, parent. One person can hold several roles and belong to several schools with one login.
 - **Academic structure**: academic years, classes, sections, subjects, class teachers and who teaches what.
 - **Registration** of students, teachers, parents and other admins, with invites, spreadsheet import (CSV or Excel), moving sections, year-end promotion and marking as left. Nothing is deleted; history is kept.
+- **Timetable**: periods of the day and a weekly grid per section. Saving a slot that books a teacher in two sections at once is refused with the clash listed, unless the admin confirms.
+- **Attendance**: one record per student per day. Everyone starts present; the teacher taps the absent, late or on-leave ones. Parents and students see a month calendar and percentage; admins see daily and monthly reports and a list of students under a threshold (75% by default). Changes after the day are logged.
+- **Homework**: teachers post to sections and subjects they teach, with attachments (served only through the API, after a permission check). Students mark it done; parents see each child's list.
+- **Tests and report cards**: exam terms, a grading scale (percentage bands, with a default), tests per subject per section, a marks grid for teachers, results with grade, class average and highest. Admins publish results, which locks marks. Report cards combine a term's marks, attendance and teacher remarks; students and parents see them once published, and can print them or save them as PDF from the browser.
+- **Fees**: fee heads, fee structures per class with installments, dues billed to each enrolled student, discounts and one-off charges, payments with numbered receipts (oldest dues paid first), reversals instead of edits, and for every student: total due, paid, remaining and overdue. Admin reports: collected today, this month and this year, outstanding by class, and an overdue list with parents' contacts. Payments are recorded by the school office; online payment comes later.
 - **Web app** for all of the above, mobile-first.
 
-Timetable, attendance, homework, tests, report cards, fees and quizzes come in the next build steps.
+Quizzes, student and parent dashboards and notifications come in the next build step.
 
 ## Layout
 
@@ -23,6 +28,11 @@ backend/   Django 6 + Django REST Framework API
   apps/accounts/   users, memberships (roles), login, invites, one-time codes, audit log
   apps/academics/  academic years, classes, sections, subjects, subject teachers
   apps/people/     students, enrollments, teachers, parents, imports, setup checklist
+  apps/timetable/  periods and the weekly timetable
+  apps/attendance/ daily attendance, calendars and reports
+  apps/homework/   homework, attachments, done marks
+  apps/exams/      grading scales, exam terms, tests, marks, results, report cards
+  apps/fees/       fee heads and structures, dues, payments, receipts, balances
   tests/           API and isolation tests
 web/       Next.js web app
 ```
@@ -40,7 +50,7 @@ cd backend
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 python manage.py migrate        # settings come from environment variables; see .env.example
-python manage.py seed_demo      # optional: two demo schools and people
+python manage.py seed_demo      # optional: two demo schools with people, a timetable, attendance, marks and fees
 python manage.py runserver      # http://localhost:8000
 
 # 3. Web app, in another terminal
@@ -77,7 +87,9 @@ The tests need the database role from `backend/db/init.sql` (it may create a tes
 - The policies are applied after every `migrate` (`apps/tenancy/rls.py`), so tables added by later features are covered automatically. A test fails if any school table is missing its policy.
 - On top of that, every endpoint checks the user's role in the current school and narrows rows to what the role allows: teachers see students of the sections they teach, students see themselves, parents see their children.
 - The platform owner sees schools and head counts, not student records. Reading across schools goes through `audit.platform_access`, which logs it. The audit log is append-only at the database level.
-- `tests/test_isolation.py` logs into school A and tries to read, change and link school B's data through every endpoint.
+- `tests/test_isolation.py` and `tests/test_isolation_academic.py` log into school A and try to read, change and link school B's data through every endpoint.
+- Payments and their allocations can never be updated or deleted: a database trigger refuses it, so a mistake is undone with a reversing entry and totals always reconcile.
+- Marks, attendance changes after the day, fee changes and payments are written to the audit log.
 
 ## API overview
 
@@ -90,9 +102,19 @@ All paths are under `/api/`, with or without a trailing slash. School endpoints 
 | School setup | `school/`, `academic-years/`, `classes/`, `sections/`, `subjects/`, `section-subjects/`, `setup-status` |
 | People | `students/` (+ `move`, `leave`, `rejoin`, `promote`, `history`, `guardians`, `resend-invite`), `teachers/` (+ `leave`), `guardians/`, `admins/`, `my-children` |
 | Import | `imports/students`, `imports/teachers` (GET for a template, POST a file; `?dry_run=true` to check only) |
+| Timetable | `periods/`, `timetable/` (`?section=`, `?teacher=`, `?day=1-7` or `today`, `?mine=true`), `timetable/clashes` |
+| Attendance | `attendance/sheet` (GET `?section=&date=`, POST to save), `attendance/pending`, `attendance/students/<id>?month=YYYY-MM`, `attendance/reports/daily`, `…/monthly`, `…/low?threshold=75` |
+| Homework | `homework/` (`?section=`, `?student=`, `?upcoming=true`, `?due_from=`, `?due_to=`), `…/<id>/attachments`, `…/<id>/done` (POST or DELETE), `…/<id>/statuses` |
+| Tests | `grade-scales/`, `exam-terms/` (+ `create-exams`), `exams/` (+ `marks` GET/PUT, `publish`, `unpublish`, `results`), `results/students/<id>` |
+| Report cards | `report-cards/section?exam_term=&section=`, `report-cards/remarks` (PUT), `report-cards/publish` (POST, DELETE to unpublish), `report-cards/students/<id>/<term_id>` |
+| Fees | `fee-heads/`, `fee-structures/` (+ `generate-dues`), `fee-dues/`, `payments/` (+ `reverse`, `receipt`), `fees/students/<id>`, `fees/balances`, `fees/defaulters`, `fees/summary` |
+
+Money goes in and out of the API as decimal strings with two places ("1500.00") and is stored as whole paise or cents.
 
 ## Not done yet
 
 - SMS is logged instead of sent until an SMS gateway is chosen, so phone-only invites and login codes do not reach people yet.
 - Files (logos, photos) are stored on local disk; S3 with per-school folders and signed links comes with deployment.
 - Two-step login for admins is not built yet.
+- Report cards and receipts are printed (or saved as PDF) from the browser; server-made PDFs come with deployment.
+- Absent-student alerts to parents come with notifications in the next build step.

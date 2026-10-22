@@ -5,8 +5,13 @@ from rest_framework_simplejwt.views import TokenRefreshView
 
 from apps.academics import views as academics
 from apps.accounts import views as accounts
+from apps.attendance import views as attendance
+from apps.exams import views as exams
+from apps.fees import views as fees
+from apps.homework import views as homework
 from apps.people import imports, views as people
 from apps.tenancy import views as tenancy
+from apps.timetable import views as timetable
 
 # Accept paths with or without a trailing slash (the web app's proxy drops it).
 router = DefaultRouter()
@@ -24,6 +29,16 @@ router.register("students", people.StudentViewSet, basename="student")
 router.register("teachers", people.TeacherViewSet, basename="teacher")
 router.register("guardians", people.GuardianViewSet, basename="guardian")
 router.register("admins", people.AdminViewSet, basename="admin")
+router.register("periods", timetable.PeriodViewSet, basename="period")
+router.register("timetable", timetable.TimetableEntryViewSet, basename="timetable")
+router.register("homework", homework.HomeworkViewSet, basename="homework")
+router.register("grade-scales", exams.GradeScaleViewSet, basename="grade-scale")
+router.register("exam-terms", exams.ExamTermViewSet, basename="exam-term")
+router.register("exams", exams.ExamViewSet, basename="exam")
+router.register("fee-heads", fees.FeeHeadViewSet, basename="fee-head")
+router.register("fee-structures", fees.FeeStructureViewSet, basename="fee-structure")
+router.register("fee-dues", fees.DueViewSet, basename="fee-due")
+router.register("payments", fees.PaymentViewSet, basename="payment")
 
 auth = [
     path("login", accounts.LoginView.as_view(), name="login"),
@@ -42,6 +57,23 @@ api = [
     path("my-children", people.MyChildrenView.as_view(), name="my-children"),
     path("imports/students", imports.StudentImportView.as_view(), name="import-students"),
     path("imports/teachers", imports.TeacherImportView.as_view(), name="import-teachers"),
+    path("attendance/sheet", attendance.AttendanceSheetView.as_view(), name="attendance-sheet"),
+    path("attendance/pending", attendance.PendingAttendanceView.as_view(), name="attendance-pending"),
+    path("attendance/students/<uuid:student_id>", attendance.StudentAttendanceView.as_view(),
+         name="attendance-student"),
+    path("attendance/reports/daily", attendance.DailyReportView.as_view(), name="attendance-daily"),
+    path("attendance/reports/monthly", attendance.MonthlyReportView.as_view(), name="attendance-monthly"),
+    path("attendance/reports/low", attendance.LowAttendanceView.as_view(), name="attendance-low"),
+    path("results/students/<uuid:student_id>", exams.StudentResultsView.as_view(), name="student-results"),
+    path("report-cards/section", exams.SectionReportCardsView.as_view(), name="report-cards-section"),
+    path("report-cards/remarks", exams.ReportCardRemarksView.as_view(), name="report-cards-remarks"),
+    path("report-cards/publish", exams.PublishReportCardsView.as_view(), name="report-cards-publish"),
+    path("report-cards/students/<uuid:student_id>/<uuid:term_id>", exams.StudentReportCardView.as_view(),
+         name="report-card"),
+    path("fees/students/<uuid:student_id>", fees.StudentFeesView.as_view(), name="student-fees"),
+    path("fees/balances", fees.BalancesView.as_view(), name="fee-balances"),
+    path("fees/defaulters", fees.DefaultersView.as_view(), name="fee-defaulters"),
+    path("fees/summary", fees.FeeSummaryView.as_view(), name="fee-summary"),
     path("", include(router.urls)),
 ]
 

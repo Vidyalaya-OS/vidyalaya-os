@@ -68,3 +68,202 @@ export type SetupStatus = {
   steps: { key: string; label: string; count: number; done: boolean }[];
   complete: boolean;
 };
+
+export type Period = { id: string; name: string; start_time: string; end_time: string; order: number; is_break: boolean };
+export type TimetableEntry = {
+  id: string;
+  section: string;
+  section_name: string;
+  day_of_week: number;
+  day_name: string;
+  period: string;
+  period_name: string;
+  start_time: string;
+  end_time: string;
+  subject: string;
+  subject_name: string;
+  teacher: string | null;
+  teacher_name: string | null;
+  room: string;
+};
+
+export type AttendanceStatus = "present" | "absent" | "late" | "leave";
+export type AttendanceSummary = Record<AttendanceStatus, number> & { marked_days: number; attended: number; percentage: number | null };
+export type AttendanceSheet = {
+  section: string;
+  section_name: string;
+  date: string;
+  marked: boolean;
+  marked_by: string | null;
+  updated_at: string | null;
+  students: { enrollment: string; student: string; name: string; roll_no: number | null; admission_no: string; status: AttendanceStatus; remark: string; marked: boolean }[];
+  summary: AttendanceSummary;
+};
+export type StudentAttendance = {
+  student: string;
+  name: string;
+  month: string;
+  first_day: string;
+  last_day: string;
+  days: { date: string; status: AttendanceStatus; remark: string }[];
+  month_summary: AttendanceSummary;
+  academic_year: string | null;
+  year_summary: AttendanceSummary;
+};
+
+export type Homework = {
+  id: string;
+  section: string;
+  section_name: string;
+  subject: string;
+  subject_name: string;
+  teacher_name: string | null;
+  title: string;
+  instructions: string;
+  assigned_on: string;
+  due_date: string;
+  attachments: { id: string; name: string; size: number; url: string }[];
+  done: boolean | null;
+  done_count?: number;
+};
+
+export type GradeBand = { min: number; grade: string };
+export type GradeScale = { id: string; name: string; bands: GradeBand[]; is_default: boolean };
+export type ExamTerm = {
+  id: string;
+  academic_year: string;
+  academic_year_name: string;
+  name: string;
+  start_date: string | null;
+  end_date: string | null;
+  order: number;
+  grade_scale: string | null;
+  grade_scale_name: string | null;
+};
+export type Exam = {
+  id: string;
+  exam_term: string;
+  exam_term_name: string;
+  section: string;
+  section_name: string;
+  subject: string;
+  subject_name: string;
+  date: string | null;
+  max_marks: string;
+  pass_marks: string | null;
+  status: "draft" | "published";
+  published_at: string | null;
+  marks_entered: number;
+  students: number;
+};
+export type MarkRow = {
+  enrollment: string;
+  student: string;
+  name: string;
+  roll_no: number | null;
+  admission_no: string;
+  marks_obtained: string | null;
+  is_absent: boolean;
+  remark: string;
+  entered: boolean;
+};
+export type SubjectResult = {
+  exam: string;
+  subject_name: string;
+  date: string | null;
+  max_marks: string;
+  pass_marks: string | null;
+  marks_obtained: string | null;
+  is_absent: boolean;
+  remark: string;
+  percentage: number | null;
+  grade: string | null;
+  passed: boolean | null;
+  class_average: number | null;
+  highest: string | null;
+  status: string;
+};
+export type TermResult = {
+  exam_term: string;
+  exam_term_name: string;
+  subjects: SubjectResult[];
+  total: string;
+  total_max: string;
+  percentage: number | null;
+  grade: string | null;
+  report_card_published?: boolean;
+};
+export type ReportCard = {
+  school: { name: string; address: string; board: string; logo: string | null };
+  student: { id: string; name: string; admission_no: string; dob: string | null; roll_no: number | null };
+  section_name: string | null;
+  class_teacher: string | null;
+  academic_year: string;
+  result: TermResult;
+  attendance: AttendanceSummary;
+  remarks: string;
+  published_at: string | null;
+  bands: GradeBand[];
+};
+
+export type FeeHead = { id: string; name: string; description: string; is_refundable: boolean };
+export type Installment = { name: string; due_date: string; amount: string };
+export type FeeStructure = {
+  id: string;
+  academic_year: string;
+  school_class: string;
+  class_name: string;
+  fee_head: string;
+  fee_head_name: string;
+  amount: string;
+  installments: Installment[];
+  students_billed: number;
+};
+export type FeeDue = {
+  id: string;
+  student: string;
+  fee_head: string;
+  fee_head_name: string;
+  installment_no: number;
+  name: string;
+  due_date: string;
+  amount: string;
+  discount: string;
+  discount_reason: string;
+  paid: string;
+  remaining: string;
+  is_overdue: boolean;
+  from_structure: boolean;
+};
+export type Payment = {
+  id: string;
+  receipt_no: string;
+  student: string;
+  student_name: string;
+  admission_no: string;
+  academic_year: string;
+  amount: string;
+  paid_on: string;
+  mode: string;
+  reference: string;
+  notes: string;
+  received_by_name: string;
+  allocations: { due: string; name: string; fee_head: string; amount: string }[];
+  is_reversal: boolean;
+  is_reversed: boolean;
+  reverses_receipt_no: string | null;
+  created_at: string;
+};
+export type FeeTotals = { due: string; discount: string; paid: string; remaining: string; overdue: string };
+export type FeeStatement = {
+  student: string;
+  name: string;
+  admission_no: string;
+  academic_year: string;
+  academic_year_name: string;
+  currency: string;
+  totals: FeeTotals & { next_due: { due: string; name: string; due_date: string; remaining: string } | null };
+  dues: FeeDue[];
+  payments: Payment[];
+};
+export type BalanceRow = FeeTotals & { student: string; name: string; admission_no: string; section_name: string; roll_no: number | null };

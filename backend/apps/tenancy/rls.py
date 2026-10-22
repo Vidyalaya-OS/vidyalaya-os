@@ -6,6 +6,9 @@ policy apply to the table owner too, so the app role cannot skip it.
 
 This runs after every migrate (see apps.py), so new tables added by later
 features are covered automatically. A test checks every tenant table.
+
+Tenant models that set `append_only = True` (payments) also get a trigger
+that refuses every UPDATE and DELETE, so money records are never rewritten.
 """
 
 from django.apps import apps
@@ -21,6 +24,13 @@ $$;
 CREATE OR REPLACE FUNCTION app_current_user() RETURNS uuid
 LANGUAGE sql STABLE AS $$
     SELECT NULLIF(current_setting('app.current_user', true), '')::uuid
+$$;
+
+CREATE OR REPLACE FUNCTION app_refuse_change() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+    RAISE EXCEPTION 'Rows in % are never changed or deleted; add a reversing row instead.', TG_TABLE_NAME;
+END
 $$;
 """
 
@@ -71,9 +81,12 @@ def apply_rls(using="default", **kwargs):
             if table not in tables:
                 continue
             cursor.execute(policy_sql(table))
+            q = connection.ops.quote_name(table)
             for name, body in EXTRA_POLICIES.get(table, []):
-                q = connection.ops.quote_name(table)
                 cursor.execute(f"DROP POLICY IF EXISTS {name} ON {q}; CREATE POLICY {name} ON {q} {body};")
+            if getattr(model, "append_only", False):
+                cursor.execute(f"CREATE OR REPLACE TRIGGER append_only BEFORE UPDATE OR DELETE ON {q} "
+                               "FOR EACH ROW EXECUTE FUNCTION app_refuse_change();")
         if "audit_logs" in tables:
             # Append-only: anyone may insert, reads are school-scoped, and
             # there is no UPDATE or DELETE policy, so those are refused.

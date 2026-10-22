@@ -59,7 +59,7 @@ class PlatformTests(ApiTestCase):
         response = self.client_for(self.owner).get("/api/platform/schools/")
         self.assertEqual(response.status_code, 200)
         row = response.data["results"][0]
-        self.assertEqual(row["usage"], {"students": 2, "teachers": 1, "admins": 1})
+        self.assertEqual(row["usage"], {"students": 2, "teachers": 1, "admins": 1, "fees_collected": "0.00"})
         self.assertNotIn("students", {k for k in row if k != "usage"})
         # Reading across schools is logged.
         with bypass_rls():
