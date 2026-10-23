@@ -38,7 +38,7 @@ def app_config():
     from apps.fees.models import Payment
 
     data = {
-        "app_name": getattr(settings, "APP_NAME", "SMS · School Management System"),
+        "app_name": getattr(settings, "APP_NAME", "Vidyalaya OS"),
         "plans": [{"key": k, "label": label, "description": PLAN_DESCRIPTIONS.get(k, "")} for k, label in School.Plan.choices],
         "boards": _setting("SCHOOL_BOARDS", DEFAULT_BOARDS),
         "timezones": _setting("SCHOOL_TIMEZONES", DEFAULT_TIMEZONES),

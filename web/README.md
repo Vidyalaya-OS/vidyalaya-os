@@ -1,4 +1,4 @@
-# Web app
+# Vidyalaya OS web app
 
 Next.js (App Router) + TypeScript + Tailwind. One responsive app for every role, installable on phones.
 

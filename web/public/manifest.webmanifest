@@ -1,6 +1,6 @@
 {
-  "name": "School Management System",
-  "short_name": "SMS",
+  "name": "Vidyalaya OS",
+  "short_name": "Vidyalaya",
   "description": "Attendance, timetable, homework, quizzes, marks, report cards and fees for every school, teacher, student and parent.",
   "start_url": "/",
   "scope": "/",

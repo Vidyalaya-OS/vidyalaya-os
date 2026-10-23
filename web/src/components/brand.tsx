@@ -1,44 +1,48 @@
 import { cx } from "@/components/ui";
 
-// The SMS logo: three stacked tiles, read from the bottom up as the school,
-// its people and their day-to-day records. The flat mark is an SVG that works
-// at any size (and is drawn into the app icons); the 3D mark builds the same
-// stack from real layers that float apart and turn slowly.
+// The Vidyalaya OS logo: three stacked tiles, read from the bottom up as the
+// school, its people and their day-to-day records, with a "V" for Vidyalaya
+// (a place of learning) on the top tile. The flat mark is an SVG that works at
+// any size (and is drawn into the app icons); the 3D mark builds the same stack
+// from real layers that float apart and turn slowly.
 
 /** The flat logo mark. */
 export function LogoMark({ className, title }: { className?: string; title?: string }) {
   return (
     <svg viewBox="0 0 48 48" className={className} role={title ? "img" : undefined} aria-label={title} aria-hidden={title ? undefined : true}>
       <defs>
-        <linearGradient id="sms-top" x1="6" y1="6" x2="42" y2="26" gradientUnits="userSpaceOnUse">
+        <linearGradient id="vos-top" x1="6" y1="6" x2="42" y2="26" gradientUnits="userSpaceOnUse">
           <stop stopColor="#38bdf8" />
           <stop offset="1" stopColor="#2f5bea" />
         </linearGradient>
-        <linearGradient id="sms-mid" x1="6" y1="14" x2="42" y2="34" gradientUnits="userSpaceOnUse">
+        <linearGradient id="vos-mid" x1="6" y1="14" x2="42" y2="34" gradientUnits="userSpaceOnUse">
           <stop stopColor="#6366f1" />
           <stop offset="1" stopColor="#4338ca" />
         </linearGradient>
-        <linearGradient id="sms-low" x1="6" y1="22" x2="42" y2="42" gradientUnits="userSpaceOnUse">
+        <linearGradient id="vos-low" x1="6" y1="22" x2="42" y2="42" gradientUnits="userSpaceOnUse">
           <stop stopColor="#a855f7" />
           <stop offset="1" stopColor="#7c3aed" />
         </linearGradient>
       </defs>
-      <path d="M24 23 42 32.5 24 42 6 32.5Z" fill="url(#sms-low)" />
-      <path d="M24 14.5 42 24 24 33.5 6 24Z" fill="url(#sms-mid)" stroke="#fff" strokeOpacity=".55" strokeWidth=".8" strokeLinejoin="round" />
-      <path d="M24 6 42 15.5 24 25 6 15.5Z" fill="url(#sms-top)" stroke="#fff" strokeOpacity=".7" strokeWidth=".8" strokeLinejoin="round" />
-      <path d="M24 10.5 33.5 15.5 24 20.5 14.5 15.5Z" fill="#fff" fillOpacity=".9" />
+      <path d="M24 23 42 32.5 24 42 6 32.5Z" fill="url(#vos-low)" />
+      <path d="M24 14.5 42 24 24 33.5 6 24Z" fill="url(#vos-mid)" stroke="#fff" strokeOpacity=".55" strokeWidth=".8" strokeLinejoin="round" />
+      <path d="M24 6 42 15.5 24 25 6 15.5Z" fill="url(#vos-top)" stroke="#fff" strokeOpacity=".7" strokeWidth=".8" strokeLinejoin="round" />
+      <path d="M18.6 11.2h3.3l2.1 5.3 2.1-5.3h3.3L25.6 20h-3.2Z" fill="#fff" fillOpacity=".95" />
     </svg>
   );
 }
 
-/** The mark with the "SMS" word beside it. */
+/** The mark with the "Vidyalaya OS" name beside it. */
 export function Logo({ className, subtitle = true, invert }: { className?: string; subtitle?: boolean; invert?: boolean }) {
   return (
     <span className={cx("inline-flex items-center gap-2.5", className)}>
       <LogoMark className="size-10 shrink-0 drop-shadow-[0_6px_12px_rgb(47_91_234/0.35)]" />
       <span className="leading-none">
-        <span className={cx("block text-xl font-extrabold tracking-tight", invert ? "text-white" : "bg-gradient-to-r from-brand to-violet-500 bg-clip-text text-transparent")}>SMS</span>
-        {subtitle && <span className={cx("mt-1 block text-[0.7rem] font-medium uppercase tracking-[0.14em]", invert ? "text-white/70" : "text-soft")}>School Management System</span>}
+        <span className="flex items-center gap-1.5">
+          <span className={cx("text-xl font-extrabold tracking-tight", invert ? "text-white" : "bg-gradient-to-r from-brand to-violet-500 bg-clip-text text-transparent")}>Vidyalaya</span>
+          <span className={cx("rounded-md px-1.5 py-0.5 text-[0.7rem] font-bold tracking-wider", invert ? "bg-white/15 text-white" : "bg-brand-soft text-brand")}>OS</span>
+        </span>
+        {subtitle && <span className={cx("mt-1 block text-[0.7rem] font-medium uppercase tracking-[0.14em]", invert ? "text-white/70" : "text-soft")}>The school operating system</span>}
       </span>
     </span>
   );
@@ -68,8 +72,12 @@ export function Logo3D({ size = 220, className }: { size?: number; className?: s
             {/* A thin edge under each tile gives it thickness. */}
             <div className={cx("absolute inset-0 rounded-[22%] opacity-80", l.edge)} style={{ transform: `translateZ(-${tile * 0.06}px)` }} />
             {l.z === 2 && (
-              <div className="absolute inset-[24%] flex items-center justify-center rounded-[18%] bg-white/90 text-brand shadow-lg" style={{ transform: `translateZ(${tile * 0.02}px)` }}>
-                <span className="font-extrabold tracking-tight" style={{ fontSize: tile * 0.16 }}>SMS</span>
+              <div className="absolute inset-[22%] flex items-center justify-center rounded-[18%] bg-white/90 text-brand shadow-lg" style={{ transform: `translateZ(${tile * 0.02}px)` }}>
+                {/* Turned back so the V stands upright as the stack sways. */}
+                <span className="flex rotate-45 flex-col items-center leading-none">
+                  <span className="font-black" style={{ fontSize: tile * 0.3 }}>V</span>
+                  <span className="font-bold tracking-[0.08em] text-violet-600" style={{ fontSize: tile * 0.08 }}>OS</span>
+                </span>
               </div>
             )}
           </div>

@@ -4,10 +4,13 @@ import { createContext, useCallback, useContext, useEffect, useState } from "rea
 
 export type ThemeChoice = "system" | "light" | "dark";
 
-const KEY = "sms.theme";
+const KEY = "vidyalaya.theme";
 
-/** Runs before the page paints, so a dark-mode user never sees a white flash. */
-export const THEME_SCRIPT = `(function(){try{var c=localStorage.getItem("${KEY}");var d=c==="dark"||((!c||c==="system")&&matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.dataset.theme=d?"dark":"light"}catch(e){document.documentElement.dataset.theme="light"}})()`;
+/** Runs before the page paints, so a dark-mode user never sees a white flash.
+ * It first moves anything saved under the old "sms." prefix (from before the
+ * rename to Vidyalaya OS) to "vidyalaya.", so nobody is signed out or loses
+ * their theme, chosen child or quiz drafts. */
+export const THEME_SCRIPT = `(function(){try{for(var i=localStorage.length-1;i>=0;i--){var k=localStorage.key(i);if(k&&k.indexOf("sms.")===0){var n="vidyalaya."+k.slice(4);if(localStorage.getItem(n)===null)localStorage.setItem(n,localStorage.getItem(k));localStorage.removeItem(k)}}}catch(e){}try{var c=localStorage.getItem("${KEY}");var d=c==="dark"||((!c||c==="system")&&matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.dataset.theme=d?"dark":"light"}catch(e){document.documentElement.dataset.theme="light"}})()`;
 
 type Ctx = { choice: ThemeChoice; resolved: "light" | "dark"; setChoice: (c: ThemeChoice) => void };
 

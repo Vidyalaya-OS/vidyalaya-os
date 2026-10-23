@@ -9,11 +9,11 @@ import "./globals.css";
 const sans = Plus_Jakarta_Sans({ variable: "--font-sans-app", subsets: ["latin"], display: "swap" });
 
 export const metadata: Metadata = {
-  title: { default: "School Management System", template: "%s · School Management System" },
+  title: { default: "Vidyalaya OS", template: "%s · Vidyalaya OS" },
   description: "One place for schools, teachers, students and parents: timetable, attendance, homework, tests, report cards, quizzes and fees.",
-  applicationName: "School Management System",
+  applicationName: "Vidyalaya OS",
   manifest: "/manifest.webmanifest",
-  appleWebApp: { capable: true, title: "SMS", statusBarStyle: "default" },
+  appleWebApp: { capable: true, title: "Vidyalaya OS", statusBarStyle: "default" },
   formatDetection: { telephone: false },
   icons: { icon: [{ url: "/favicon.ico" }, { url: "/logo.svg", type: "image/svg+xml" }], apple: "/apple-icon.png" },
   // Signed-in screens hold private school data; only the login page is meant to be found.

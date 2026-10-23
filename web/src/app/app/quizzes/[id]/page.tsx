@@ -77,7 +77,7 @@ function timeLeft(until: string, now: number) {
  * Answers are kept in this tab while the student works, so a refresh does
  * not lose them. Keys 1 to 4 (or A to D) choose, arrows move. */
 function TakeQuiz({ paper, onDone }: { paper: QuizPaper; onDone: () => void }) {
-  const draftKey = `sms.quiz.${paper.quiz.id}`;
+  const draftKey = `vidyalaya.quiz.${paper.quiz.id}`;
   const [answers, setAnswers] = useState<Record<string, number>>(() => {
     try {
       return JSON.parse(window.sessionStorage.getItem(draftKey) ?? "{}");

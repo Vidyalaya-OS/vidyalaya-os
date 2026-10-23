@@ -37,7 +37,7 @@ function TopBar() {
   return (
     <header className={cx("sticky top-0 z-40 transition duration-300", scrolled ? "border-b border-line bg-surface/80 backdrop-blur-md" : "bg-transparent")}>
       <div className="mx-auto flex h-16 max-w-6xl items-center gap-4 px-4 sm:px-6">
-        <Link href="/" aria-label="SMS home"><Logo subtitle={false} /></Link>
+        <Link href="/" aria-label="Vidyalaya OS home"><Logo subtitle={false} /></Link>
         <nav aria-label="Page" className="ml-4 hidden items-center gap-1 text-sm font-medium text-soft md:flex">
           {[["#roles", "Who it's for"], ["#how", "How it works"], ["#features", "Features"], ["#faq", "Questions"]].map(([href, label]) => (
             <a key={href} href={href} className="rounded-lg px-3 py-2 transition hover:bg-muted hover:text-ink">{label}</a>
@@ -65,7 +65,7 @@ function Hero() {
       <div className="relative mx-auto grid max-w-6xl items-center gap-10 px-4 pb-16 pt-10 sm:px-6 lg:grid-cols-[1.1fr_1fr] lg:pb-24 lg:pt-16">
         <div className="animate-rise">
           <span className="inline-flex items-center gap-2 rounded-full border border-line bg-surface px-3 py-1 text-xs font-semibold text-soft shadow-xs">
-            <Sparkles className="size-3.5 text-brand" aria-hidden /> School Management System
+            <Sparkles className="size-3.5 text-brand" aria-hidden /> Vidyalaya OS · the school operating system
           </span>
           <h1 className="mt-5 text-4xl font-extrabold leading-[1.08] tracking-tight sm:text-5xl lg:text-6xl">
             One calm place for your{" "}
@@ -194,7 +194,7 @@ function RoleExplorer() {
               </div>
             </Tilt>
             <div className="rounded-3xl border border-line p-5">
-              <p className="text-sm font-semibold uppercase tracking-wider text-soft">A day with SMS</p>
+              <p className="text-sm font-semibold uppercase tracking-wider text-soft">A day with Vidyalaya OS</p>
               <ol className="mt-4 space-y-4">
                 {r.day.map((d, i) => (
                   <li key={d.time} className="relative flex gap-4">

@@ -1,4 +1,4 @@
-"""Django settings for the School Management System API.
+"""Django settings for the Vidyalaya OS API.
 
 Every value that differs between environments is read from the environment,
 so the same code runs locally, in CI and in production.
@@ -171,8 +171,11 @@ SCHOOL_TIMEZONES = env_list("SCHOOL_TIMEZONES")
 # Invite links stay valid for this many days.
 INVITE_VALID_DAYS = int(env("INVITE_VALID_DAYS", "7"))
 
+# The product name used in emails and given to the web app (GET /api/config).
+APP_NAME = env("APP_NAME", "Vidyalaya OS")
+
 EMAIL_BACKEND = env("EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend")
-DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", "no-reply@localhost")
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", "Vidyalaya OS <no-reply@localhost>")
 
 # Origins allowed to call the API from a browser (the web app).
 CORS_ALLOWED_ORIGINS = env_list("CORS_ALLOWED_ORIGINS", "http://localhost:3000")

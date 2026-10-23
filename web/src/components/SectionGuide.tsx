@@ -8,7 +8,7 @@ import { Scene3D } from "@/components/Scene3D";
 import { ADMIN_GUIDES } from "@/lib/guides";
 import { useSession } from "@/lib/session";
 
-const KEY = "sms.guides.hidden";
+const KEY = "vidyalaya.guides.hidden";
 
 function readHidden(): string[] {
   try {

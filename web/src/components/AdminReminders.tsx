@@ -7,7 +7,7 @@ import { TeacherAttendanceSheet } from "@/lib/types";
 import { useApi } from "@/lib/useApi";
 
 /** Sent when the admin saves teacher attendance, so reminders refresh. */
-export const TEACHER_ATTENDANCE_SAVED = "sms:teacher-attendance-saved";
+export const TEACHER_ATTENDANCE_SAVED = "vidyalaya:teacher-attendance-saved";
 
 /** Today's teacher register, kept fresh when it is saved anywhere. */
 export function useTeacherRegister() {

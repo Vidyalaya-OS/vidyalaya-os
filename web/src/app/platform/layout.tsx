@@ -26,7 +26,7 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
 
   return (
     <AppShell
-      brand={{ title: "SMS Platform", subtitle: "Platform owner", mark: <LogoMark className="size-9 shrink-0" /> }}
+      brand={{ title: "Vidyalaya OS", subtitle: "Platform owner", mark: <LogoMark className="size-9 shrink-0" /> }}
       groups={[{ items }]}
       tabs={items}
       user={{ name: user.name, detail: user.email ?? user.phone ?? "" }}

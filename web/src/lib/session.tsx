@@ -21,7 +21,7 @@ type Ctx = {
   reload: () => Promise<void>;
 };
 
-const PORTAL_KEY = "sms.homeView";
+const PORTAL_KEY = "vidyalaya.homeView";
 
 const SessionContext = createContext<Ctx | null>(null);
 

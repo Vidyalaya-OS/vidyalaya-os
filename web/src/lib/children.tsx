@@ -17,7 +17,7 @@ type Ctx = {
 };
 
 const ChildrenContext = createContext<Ctx | null>(null);
-const KEY = "sms.child";
+const KEY = "vidyalaya.child";
 
 /** Which student the "your record" screens are about. A parent's choice of
  * child is shared by every screen and remembered on this device. */

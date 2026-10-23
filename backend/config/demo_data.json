@@ -1,5 +1,5 @@
 {
-  "_about": "Demo data for trying SMS locally. `python manage.py seed_demo` loads it, and so does `migrate` on an empty database when DEMO_AUTOLOAD=true. Edit this file to change the demo; the code that loads it is apps/core/demo.py. Money is in rupees (major units).",
+  "_about": "Demo data for trying Vidyalaya OS locally. `python manage.py seed_demo` loads it, and so does `migrate` on an empty database when DEMO_AUTOLOAD=true. Edit this file to change the demo; the code that loads it is apps/core/demo.py. Money is in rupees (major units).",
   "password": "Demo-pass-2026",
   "owner": { "name": "Platform Owner", "email": "owner@demo.test" },
   "schools": [

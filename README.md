@@ -1,6 +1,10 @@
-# School Management System
+<p align="center"><img src="web/public/logo.svg" width="96" alt="Vidyalaya OS logo"></p>
 
-One web platform that many schools join. Each school gets its own private portal, run by its own admin, where teachers, students and parents each see only what concerns them.
+<h1 align="center">Vidyalaya OS</h1>
+
+<p align="center"><b>The school operating system.</b> Timetables, attendance, homework, quizzes, report cards and fees for every school, teacher, student and parent.</p>
+
+Vidyalaya OS is one web platform that many schools join. Each school gets its own private portal, run by its own admin, where teachers, students and parents each see only what concerns them.
 
 This repository holds the **core platform** (build step 2 of the spec), the **academic and fee features** (build step 3), and **quizzes and the student and parent dashboards** (part of build step 4):
 
@@ -28,7 +32,7 @@ Notifications and announcements come next.
 
 The web app in `web/` works on phones, tablets and computers, in light and dark mode.
 
-- **Landing page** at `/`: the 3D SMS logo, a "Choose who you are" explainer for owners, admins, teachers, students and parents, how it works, features, privacy and an FAQ (including what the Parent code is). Signed-in people go straight to their portal.
+- **Landing page** at `/`: the 3D Vidyalaya OS logo, a "Choose who you are" explainer for owners, admins, teachers, students and parents, how it works, features, privacy and an FAQ (including what the Parent code is). Signed-in people go straight to their portal.
 - **One layout for every role.** On a computer there is a sidebar; on a phone there is a top bar, four tabs at the bottom for that role's most used screens, and a "More" drawer for the rest. The menu follows the person's current **portal** (Admin, Teacher, Student or Parent), so an admin sees admin sections only. Someone with several roles switches portal at the top of the menu or on Home; a link into another of their portals switches automatically, and a page none of their roles may open shows a clear message.
 - **Owner space**: a banner with the 3D logo, totals that tilt in 3D, a schools table (School, Plan, Students, Teachers, Fees this year, Status) with Active, Suspend and Archive buttons and Resend admin invite, status filters, students per school, plan mix, and schools that need a look. Onboarding is four steps (school, academic year, first admin, review) with a live preview.
 - **Sign-in**: password, or the **Parent code** for parent accounts: a 6-digit code sent to the parent's phone or email, valid once for 10 minutes (printed in the API console while developing).
@@ -41,7 +45,69 @@ The web app in `web/` works on phones, tablets and computers, in light and dark 
 - **Errors and loading**: skeletons while loading, empty states with a next step, error boxes with Retry, a separate message when the device is offline, toasts instead of browser alerts, confirm and input dialogs instead of browser pop-ups, field-level form messages, crash screens per area, a 404 page, and a return to sign-in (then back to the same page) when a session ends.
 - **Production**: strict TypeScript, ESLint clean, `next build` passes, security headers, an installable web app manifest with icons, keyboard focus rings, a skip link and screen reader labels. API responses are cached for a few minutes per school and stale requests are cancelled.
 
-Screenshots of every role on phone and computer are in the shared `screenshots/` folder.
+Screenshots of the landing page and every portal are below, in "Screenshots".
+
+## Screenshots
+
+Taken from the demo data (see "Run it locally"). Each portal is shown on a computer and on a phone. The files are in `docs/screenshots/`.
+
+### Landing page
+
+The public page at `/`: the 3D logo, what each role gets, how it works, features and questions.
+
+<p>
+  <img src="docs/screenshots/landing.png" width="74%" alt="Landing page on a computer">
+  <img src="docs/screenshots/landing-phone.png" width="22%" alt="Landing page on a phone">
+</p>
+
+**Sign in** with a password, or with the Parent code for parents:
+
+<img src="docs/screenshots/login.png" width="74%" alt="Sign-in page">
+
+### Platform owner
+
+Every school with its plan, head counts and fees this year, with Suspend, Archive and Resend admin invite. Sign in as `owner@demo.test`.
+
+<p>
+  <img src="docs/screenshots/owner-home.png" width="74%" alt="Platform owner home on a computer">
+  <img src="docs/screenshots/owner-home-phone.png" width="22%" alt="Platform owner home on a phone">
+</p>
+
+### School admin
+
+The section guide, the next setup step, teacher attendance due today, then the setup path, attendance and fees. Sign in as `admin@greenvalley.test`.
+
+<p>
+  <img src="docs/screenshots/admin-home.png" width="74%" alt="School admin home on a computer">
+  <img src="docs/screenshots/admin-home-phone.png" width="22%" alt="School admin home on a phone">
+</p>
+
+### Teacher
+
+Today's classes, attendance to mark, open quizzes, marks to enter and shortcuts. Sign in as `teacher@greenvalley.test`.
+
+<p>
+  <img src="docs/screenshots/teacher-home.png" width="74%" alt="Teacher home on a computer">
+  <img src="docs/screenshots/teacher-home-phone.png" width="22%" alt="Teacher home on a phone">
+</p>
+
+### Student
+
+Today's classes, quizzes to take, homework, latest results against the class average, attendance and fees. Sign in as `student1@greenvalley.test`.
+
+<p>
+  <img src="docs/screenshots/student-home.png" width="74%" alt="Student home on a computer">
+  <img src="docs/screenshots/student-home-phone.png" width="22%" alt="Student home on a phone">
+</p>
+
+### Parent
+
+One panel per child: homework, quizzes, fees paid and remaining, attendance, test results and quiz scores. Sign in as `parent1@greenvalley.test`.
+
+<p>
+  <img src="docs/screenshots/parent-home.png" width="74%" alt="Parent home on a computer">
+  <img src="docs/screenshots/parent-home-phone.png" width="22%" alt="Parent home on a phone">
+</p>
 
 ## Layout
 
@@ -63,6 +129,7 @@ backend/   Django 6 + Django REST Framework API
   config/demo_data.json  the demo platform: schools, people, fees, quizzes (edit to change the demo)
   tests/           API and isolation tests
 web/       Next.js web app
+docs/screenshots/  the screenshots in this README
 ```
 
 ## Run it locally
@@ -96,6 +163,8 @@ With the demo data, every account's password is `Demo-pass-2026`:
 | Teacher | teacher@greenvalley.test |
 | Student | student1@greenvalley.test |
 | Parent | parent1@greenvalley.test |
+
+The product name in emails and in `GET /api/config` comes from `APP_NAME` (default `Vidyalaya OS`). The database name and role stay `sms` and `sms_app` from before the rename, so existing databases keep working; set `POSTGRES_DB`, `POSTGRES_USER` and `POSTGRES_PASSWORD` to use other names.
 
 Create a real platform owner with `python manage.py createsuperuser`. In development, invite emails and login codes are printed in the API's console.
 
@@ -155,7 +224,7 @@ Money goes in and out of the API as decimal strings with two places ("1500.00") 
 
 ## Not done yet
 
-- SMS is logged instead of sent until an SMS gateway is chosen, so phone-only invites and login codes do not reach people yet.
+- Text messages (SMS) are logged instead of sent until a gateway is chosen, so phone-only invites and login codes do not reach people yet.
 - Files (logos, photos) are stored on local disk; S3 with per-school folders and signed links comes with deployment.
 - Two-step login for admins is not built yet.
 - Report cards and receipts are printed (or saved as PDF) from the browser; server-made PDFs come with deployment.

@@ -17,8 +17,8 @@ export type Session = { access: string; refresh: string; user: User; memberships
 
 export type Page<T> = { count: number; next: string | null; previous: string | null; results: T[] };
 
-const STORAGE_KEY = "sms.session";
-const SCHOOL_KEY = "sms.school";
+const STORAGE_KEY = "vidyalaya.session";
+const SCHOOL_KEY = "vidyalaya.school";
 
 export class ApiError extends Error {
   status: number;

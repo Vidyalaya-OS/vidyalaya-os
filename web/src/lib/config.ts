@@ -21,7 +21,7 @@ export type AppConfig = {
 };
 
 export const DEFAULT_CONFIG: AppConfig = {
-  app_name: "SMS · School Management System",
+  app_name: "Vidyalaya OS",
   plans: [
     { key: "trial", label: "Trial", description: "Try every feature free while the school sets up." },
     { key: "standard", label: "Standard", description: "Attendance, homework, tests, report cards and fees." },

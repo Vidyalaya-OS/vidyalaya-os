@@ -28,7 +28,7 @@ def invite_url(token):
 
 
 def send_invite(user, token, school=None):
-    where = school.name if school else "the School Management System"
+    where = f"{school.name} on {settings.APP_NAME}" if school else settings.APP_NAME
     message = (
         f"Hello {user.name},\n\n"
         f"You have been invited to {where}. Set your password here:\n{invite_url(token)}\n\n"
@@ -38,5 +38,5 @@ def send_invite(user, token, school=None):
 
 
 def send_login_code(user, code):
-    message = f"Your login code is {code}. It expires in 10 minutes."
-    _deliver(user, "Your login code", message)
+    message = f"Your {settings.APP_NAME} login code is {code}. It expires in 10 minutes."
+    _deliver(user, f"Your {settings.APP_NAME} login code", message)

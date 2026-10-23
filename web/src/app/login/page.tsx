@@ -136,7 +136,7 @@ function Login() {
   return (
     <AuthLayout>
       <Link href="/" className="mb-6 inline-flex items-center gap-1.5 text-sm font-medium text-soft transition hover:text-brand">
-        <ArrowLeft className="size-4" aria-hidden /> About SMS
+        <ArrowLeft className="size-4" aria-hidden /> About Vidyalaya OS
       </Link>
       <h1 className="text-3xl font-bold tracking-tight">Welcome back</h1>
       <p className="mt-2 text-soft">Sign in with the email or phone number your school registered.</p>
