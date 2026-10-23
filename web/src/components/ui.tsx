@@ -83,6 +83,8 @@ function messageFor(el: Control, label: string) {
   if (v.tooShort && el instanceof HTMLInputElement) return `Use at least ${el.minLength} characters.`;
   if (v.rangeUnderflow && el instanceof HTMLInputElement) return `Must be ${el.min} or more.`;
   if (v.rangeOverflow && el instanceof HTMLInputElement) return `Must be ${el.max} or less.`;
+  if (v.patternMismatch) return el.title || `Check the format of ${name}.`;
+  if (v.tooLong && "maxLength" in el) return `Use at most ${el.maxLength} characters.`;
   if (v.stepMismatch) return "Enter a rounder number.";
   if (v.badInput) return `Enter a valid ${name}.`;
   return el.validationMessage;

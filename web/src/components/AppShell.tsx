@@ -26,7 +26,7 @@ export function AppShell({
   banner,
   children,
 }: {
-  brand: { title: string; subtitle: string; initials?: string };
+  brand: { title: string; subtitle: string; initials?: string; mark?: React.ReactNode };
   groups: NavGroup[];
   tabs: NavItem[];
   user: { name: string; detail: string };
@@ -72,7 +72,7 @@ export function AppShell({
             <Menu aria-hidden />
           </IconButton>
           <Link href={flat[0]?.href ?? "/"} className="flex min-w-0 flex-1 items-center gap-2.5">
-            <BrandMark initials={brand.initials ?? brand.title} />
+            {brand.mark ?? <BrandMark initials={brand.initials ?? brand.title} />}
             <span className="min-w-0">
               <span className="block truncate text-sm font-semibold leading-tight">{brand.title}</span>
               <span className="block truncate text-xs text-soft">{brand.subtitle}</span>
@@ -147,7 +147,7 @@ function BrandMark({ initials }: { initials: string }) {
 }
 
 function SidebarBody({ brand, groups, pathname, user, switchHref, onSignOut }: {
-  brand: { title: string; subtitle: string; initials?: string };
+  brand: { title: string; subtitle: string; initials?: string; mark?: React.ReactNode };
   groups: NavGroup[];
   pathname: string;
   user: { name: string; detail: string };
@@ -157,7 +157,7 @@ function SidebarBody({ brand, groups, pathname, user, switchHref, onSignOut }: {
   return (
     <>
       <div className="flex items-center gap-3 px-5 pb-4 pt-5">
-        <BrandMark initials={brand.initials ?? brand.title} />
+        {brand.mark ?? <BrandMark initials={brand.initials ?? brand.title} />}
         <div className="min-w-0 pr-8 lg:pr-0">
           <div className="truncate font-semibold leading-tight">{brand.title}</div>
           <div className="truncate text-xs text-soft">{brand.subtitle}</div>

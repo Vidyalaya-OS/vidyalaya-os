@@ -4,6 +4,7 @@ import { Building2, CirclePlus, School } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { AppShell, NavItem } from "@/components/AppShell";
+import { LogoMark } from "@/components/brand";
 import { PageLoader } from "@/components/ui";
 import { useSession } from "@/lib/session";
 
@@ -25,7 +26,7 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
 
   return (
     <AppShell
-      brand={{ title: "School platform", subtitle: "Platform owner", initials: "S P" }}
+      brand={{ title: "SMS Platform", subtitle: "Platform owner", mark: <LogoMark className="size-9 shrink-0" /> }}
       groups={[{ items }]}
       tabs={items}
       user={{ name: user.name, detail: user.email ?? user.phone ?? "" }}
