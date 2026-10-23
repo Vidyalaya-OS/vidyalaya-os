@@ -1,7 +1,8 @@
 "use client";
 
-import { BookMarked, CalendarRange, Layers, Rows3, UserCheck } from "lucide-react";
+import { ArrowRight, BookMarked, CalendarRange, Layers, Rows3, UserCheck } from "lucide-react";
 import { useState } from "react";
+import { NewClassWizard, NewSubjectWizard } from "@/components/SetupWizards";
 import { useToast } from "@/components/toast";
 import { Alert, Badge, Button, Card, DataTable, Empty, Field, PageHeader, Select } from "@/components/ui";
 import { api, Page } from "@/lib/api";
@@ -15,26 +16,87 @@ export default function SetupPage() {
   const subjects = useApi<Page<Subject>>("subjects/");
   const sections = useApi<Page<Section>>("sections/");
   const teachers = useApi<Page<Teacher>>("teachers/?status=active");
+  const [wizard, setWizard] = useState<"class" | "subject" | null>(null);
+  const [assignVersion, setAssignVersion] = useState(0);
+  const data = {
+    year: rows(years.data).find((y) => y.is_current) ?? null,
+    classes: rows(classes.data),
+    subjects: rows(subjects.data),
+    sections: rows(sections.data),
+    teachers: rows(teachers.data),
+    reload: () => { classes.reload(); subjects.reload(); sections.reload(); setAssignVersion((v) => v + 1); },
+  };
 
   return (
     <>
-      <PageHeader title="Classes & subjects" subtitle="Set up the academic year, classes, sections and subjects, then assign teachers." />
-      <div className="grid gap-5 lg:grid-cols-2">
+      <PageHeader
+        title="Classes & subjects"
+        subtitle="Build the school in order: year, classes and sections, subjects, then who teaches what."
+        actions={<>
+          <Button onClick={() => setWizard("class")}><Layers aria-hidden /> New class</Button>
+          <Button variant="secondary" onClick={() => setWizard("subject")}><BookMarked aria-hidden /> New subject</Button>
+        </>}
+      />
+      <OnboardingGuidelines onClass={() => setWizard("class")} onSubject={() => setWizard("subject")} />
+      <div className="mt-5 grid gap-5 lg:grid-cols-2">
         <YearsCard years={rows(years.data)} reload={years.reload} />
         <ClassesCard classes={rows(classes.data)} reload={() => { classes.reload(); sections.reload(); }} />
-        <SubjectsCard subjects={rows(subjects.data)} reload={subjects.reload} />
         <SectionsCard
           sections={rows(sections.data)}
           classes={rows(classes.data)}
           teachers={rows(teachers.data)}
-          currentYear={rows(years.data).find((y) => y.is_current) ?? null}
+          currentYear={data.year}
           reload={sections.reload}
         />
+        <SubjectsCard subjects={rows(subjects.data)} reload={subjects.reload} />
       </div>
       <div className="mt-5">
-        <AssignmentsCard sections={rows(sections.data)} subjects={rows(subjects.data)} teachers={rows(teachers.data)} />
+        <AssignmentsCard key={assignVersion} sections={rows(sections.data)} subjects={rows(subjects.data)} teachers={rows(teachers.data)} />
       </div>
+      <NewClassWizard open={wizard === "class"} onClose={() => setWizard(null)} data={data} />
+      <NewSubjectWizard open={wizard === "subject"} onClose={() => setWizard(null)} data={data} />
     </>
+  );
+}
+
+function StepTitle({ n, children }: { n: number; children: React.ReactNode }) {
+  return <span className="flex items-center gap-2"><span className="rounded-md bg-brand-soft px-1.5 py-0.5 text-xs font-bold text-brand">Step {n}</span>{children}</span>;
+}
+
+/** The two checklists an admin follows when the school grows. */
+function OnboardingGuidelines({ onClass, onSubject }: { onClass: () => void; onSubject: () => void }) {
+  const lists = [
+    {
+      title: "Onboarding a new class",
+      icon: <Layers aria-hidden />,
+      steps: ["Name the class and set its order", "Add its sections (A, B) with a class teacher", "Choose the subjects it studies", "Allocate a teacher to each subject", "Then: timetable, students and fees"],
+      action: onClass,
+      label: "Start the class guide",
+    },
+    {
+      title: "Onboarding a new subject",
+      icon: <BookMarked aria-hidden />,
+      steps: ["Add it once for the school, with a short code", "Choose the sections that study it", "Allocate a teacher in each section", "Then: give it periods on the timetable"],
+      action: onSubject,
+      label: "Start the subject guide",
+    },
+  ];
+  return (
+    <div className="grid gap-4 md:grid-cols-2">
+      {lists.map((l) => (
+        <Card key={l.title} title={l.title} icon={l.icon} description="Follow these steps in order so nothing is left half done.">
+          <ol className="stagger mb-4 space-y-1.5">
+            {l.steps.map((s, i) => (
+              <li key={s} className="flex items-center gap-2.5 text-sm">
+                <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-bold text-soft">{i + 1}</span>
+                {s}
+              </li>
+            ))}
+          </ol>
+          <Button variant="soft" size="sm" onClick={l.action}>{l.label} <ArrowRight aria-hidden /></Button>
+        </Card>
+      ))}
+    </div>
   );
 }
 
@@ -51,7 +113,7 @@ function YearsCard({ years, reload }: { years: AcademicYear[]; reload: () => voi
     }
   };
   return (
-    <Card title="Academic years" icon={<CalendarRange aria-hidden />}>
+    <Card title={<StepTitle n={1}>Academic years</StepTitle>} description="Set the current year first." icon={<CalendarRange aria-hidden />}>
       {years.length === 0 ? <Empty>No academic year yet.</Empty> : (
         <ul className="mb-4 space-y-2 text-sm">
           {years.map((y) => (
@@ -76,7 +138,7 @@ function YearsCard({ years, reload }: { years: AcademicYear[]; reload: () => voi
 function ClassesCard({ classes, reload }: { classes: SchoolClass[]; reload: () => void }) {
   const form = useForm({ name: "", order: "" });
   return (
-    <Card title="Classes" icon={<Layers aria-hidden />}>
+    <Card title={<StepTitle n={2}>Classes</StepTitle>} description="Grade 1, Grade 2… in order." icon={<Layers aria-hidden />}>
       {classes.length === 0 ? <Empty>No classes yet. Add Grade 1, Grade 2 and so on.</Empty> : (
         <div className="mb-4 flex flex-wrap gap-2">{classes.map((c) => <Badge key={c.id}>{c.name}</Badge>)}</div>
       )}
@@ -93,7 +155,7 @@ function ClassesCard({ classes, reload }: { classes: SchoolClass[]; reload: () =
 function SubjectsCard({ subjects, reload }: { subjects: Subject[]; reload: () => void }) {
   const form = useForm({ name: "", code: "" });
   return (
-    <Card title="Subjects" icon={<BookMarked aria-hidden />}>
+    <Card title={<StepTitle n={4}>Subjects</StepTitle>} description="One list for the whole school." icon={<BookMarked aria-hidden />}>
       {subjects.length === 0 ? <Empty>No subjects yet.</Empty> : (
         <div className="mb-4 flex flex-wrap gap-2">{subjects.map((s) => <Badge key={s.id}>{s.name}{s.code ? ` (${s.code})` : ""}</Badge>)}</div>
       )}
@@ -120,7 +182,7 @@ function SectionsCard({ sections, classes, teachers, currentYear, reload }: { se
     reload();
   };
   return (
-    <Card title={`Sections${currentYear ? ` for ${currentYear.name}` : ""}`} icon={<Rows3 aria-hidden />}>
+    <div id="sections" className="scroll-mt-20"><Card title={<StepTitle n={3}>{`Sections${currentYear ? ` for ${currentYear.name}` : ""}`}</StepTitle>} description="Each with a class teacher, who takes the roll call." icon={<Rows3 aria-hidden />}>
       {!currentYear ? <Empty>Add an academic year first.</Empty> : (
         <>
           {sections.length === 0 ? <Empty>No sections yet. Add 5-A, 5-B and so on.</Empty> : (
@@ -157,7 +219,7 @@ function SectionsCard({ sections, classes, teachers, currentYear, reload }: { se
           </form>
         </>
       )}
-    </Card>
+    </Card></div>
   );
 }
 
@@ -180,7 +242,7 @@ function AssignmentsCard({ sections, subjects, teachers }: { sections: Section[]
   };
 
   return (
-    <Card title="Who teaches what" icon={<UserCheck aria-hidden />}>
+    <div id="assign" className="scroll-mt-20"><Card title={<StepTitle n={5}>Who teaches what</StepTitle>} description="Give each section its subjects, then allocate a teacher to each." icon={<UserCheck aria-hidden />}>
       {sections.length === 0 ? <Empty>Add sections first.</Empty> : (
         <>
           <Select label="Section" value={current} onChange={(e) => setSectionId(e.target.value)} className="mb-4 max-w-xs">
@@ -218,6 +280,6 @@ function AssignmentsCard({ sections, subjects, teachers }: { sections: Section[]
           </form>
         </>
       )}
-    </Card>
+    </Card></div>
   );
 }

@@ -134,13 +134,13 @@ class DemoSeeder:
     def academics(self, year, admin, teacher, subjects):
         """A timetable, attendance, homework, a test, fees and quizzes for the focus section."""
         from apps.academics.models import SchoolClass, Section, SectionSubject
-        from apps.attendance.models import AttendanceRecord
+        from apps.attendance.models import AttendanceRecord, TeacherAttendance
         from apps.exams.models import Exam, ExamTerm, Mark
         from apps.fees import services as fee_services
         from apps.fees.models import FeeHead, FeeStructure, Payment
         from apps.fees.money import to_minor
         from apps.homework.models import Homework
-        from apps.people.models import Enrollment
+        from apps.people.models import Enrollment, Teacher
         from apps.tenancy.context import school_today
         from apps.timetable.models import Period, TimetableEntry
 
@@ -167,6 +167,10 @@ class DemoSeeder:
             for n, e in enumerate(enrollments):
                 status = "absent" if (n + back) % 6 == 0 else "late" if (n + back) % 9 == 0 else "present"
                 AttendanceRecord.objects.get_or_create(enrollment=e, date=day, defaults={"status": status, "marked_by": teacher.user})
+            # The office marks teachers; today is left for the admin to do.
+            for n, t in enumerate(Teacher.objects.filter(status=Teacher.Status.ACTIVE)):
+                status = "leave" if (n + back) % 11 == 0 else "present"
+                TeacherAttendance.objects.get_or_create(teacher=t, date=day, defaults={"status": status, "marked_by": admin})
 
         hw = self.c["homework"]
         Homework.objects.get_or_create(section=section, subject=subjects[hw["subject"]], title=hw["title"], defaults={

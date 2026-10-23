@@ -241,8 +241,24 @@ class AcademicSetupTests(ApiTestCase):
     def test_class_in_use_cannot_be_deleted(self):
         self.assertEqual(self.client.delete(f"/api/classes/{self.a.grade5.pk}/").status_code, 409)
 
-    def test_setup_status(self):
+    def test_setup_status_follows_the_path(self):
         response = self.client.get("/api/setup-status")
-        steps = {s["key"]: s["done"] for s in response.data["steps"]}
-        self.assertTrue(all(steps.values()))
+        steps = {s["key"]: s for s in response.data["steps"]}
+        self.assertEqual([k for k in steps][:5], ["academic_year", "classes", "sections", "subjects", "class_subjects"])
+        for key in ["academic_year", "classes", "sections", "subjects", "teachers", "students", "parents"]:
+            self.assertTrue(steps[key]["done"], key)
+        # Section B has no subjects yet, so assigning subjects is the next step.
+        self.assertFalse(steps["class_subjects"]["done"])
+        self.assertEqual(steps["class_subjects"]["detail"], "1 of 2 sections have subjects.")
+        self.assertEqual(response.data["next"], "class_subjects")
+        self.assertFalse(steps["timetable"]["ready"])
         self.assertEqual(response.data["current_academic_year"]["name"], "2026-27")
+
+        link = self.client.post("/api/section-subjects/", {"section": str(self.a.section_b.pk),
+                                                           "subject": str(self.a.maths.pk)})
+        self.assertEqual(link.status_code, 201, link.data)
+        data = self.client.get("/api/setup-status").data
+        steps = {s["key"]: s for s in data["steps"]}
+        self.assertTrue(steps["class_subjects"]["done"])
+        self.assertEqual(steps["subject_teachers"]["detail"], "1 subject still without a teacher.")
+        self.assertEqual(data["next"], "subject_teachers")

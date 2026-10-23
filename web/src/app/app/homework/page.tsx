@@ -31,7 +31,7 @@ export default function HomeworkPage() {
 }
 
 function TeacherHomework() {
-  const me = useApi<Page<Teacher>>("teachers/");
+  const me = useApi<Page<Teacher>>("teachers/?mine=true");
   const pairs = rows(me.data)[0]?.teaches ?? [];
   const [tab, setTab] = useState<"upcoming" | "all">("upcoming");
   const [version, setVersion] = useState(0);

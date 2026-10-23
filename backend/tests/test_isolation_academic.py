@@ -82,8 +82,8 @@ class AcademicIsolationTests(ApiTestCase):
         self.assertIn("period", response.data)
         response = client.post("/api/payments/", {"student": str(b.student.pk), "amount": "1", "mode": "cash"})
         self.assertEqual(response.status_code, 400)
-        response = client.post("/api/attendance/sheet", {"section": str(b.section_a.pk),
-                                                         "date": school_today().isoformat()})
+        response = self.client_for(a.teacher_user, a.school).post(
+            "/api/attendance/sheet", {"section": str(b.section_a.pk), "date": school_today().isoformat()})
         self.assertEqual(response.status_code, 400)
         response = client.post("/api/fee-structures/", {"academic_year": str(a.year.pk),
                                                         "school_class": str(b.grade5.pk),

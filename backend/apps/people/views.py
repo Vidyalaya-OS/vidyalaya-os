@@ -11,6 +11,7 @@ from apps.academics.models import AcademicYear, SchoolClass, Section, SectionSub
 from apps.accounts import audit, services
 from apps.accounts.models import Role, SchoolMembership
 from apps.accounts.permissions import IsSchoolAdmin, SchoolPermission
+from apps.core.setup import setup_progress
 
 from .models import Enrollment, Guardian, Student, StudentGuardian, Teacher
 from .scoping import guardian_for, has_role, teacher_for, teacher_section_ids, visible_students
@@ -209,9 +210,10 @@ class TeacherViewSet(RegistrationViewSet):
 
     def get_queryset(self):
         qs = Teacher.objects.select_related("user")
-        if not has_role(self.request, Role.ADMIN):
-            qs = qs.filter(user=self.request.user)
         params = self.request.query_params
+        # Non-admins only see themselves; ?mine=true asks for that as an admin who also teaches.
+        if not has_role(self.request, Role.ADMIN) or params.get("mine") == "true":
+            qs = qs.filter(user=self.request.user)
         if params.get("status"):
             qs = qs.filter(status=params["status"])
         if params.get("search"):
@@ -314,37 +316,9 @@ class MyChildrenView(APIView):
 
 
 class SetupStatusView(APIView):
-    """The setup wizard's checklist for a new school."""
+    """The admin's guided setup path: each step, what is missing and the next one to do."""
 
     permission_classes = [IsSchoolAdmin]
 
     def get(self, request):
-        year = AcademicYear.objects.filter(is_current=True).first()
-        sections = Section.objects.filter(academic_year=year) if year else Section.objects.none()
-        counts = {
-            "academic_year": 1 if year else 0,
-            "classes": SchoolClass.objects.count(),
-            "sections": sections.count(),
-            "subjects": Subject.objects.count(),
-            "subject_teachers": SectionSubject.objects.filter(section__in=sections, teacher__isnull=False).count(),
-            "teachers": Teacher.objects.filter(status=Teacher.Status.ACTIVE).count(),
-            "students": Enrollment.objects.filter(academic_year=year, status=Enrollment.Status.ACTIVE).count()
-            if year else 0,
-            "parents": Guardian.objects.count(),
-        }
-        labels = [
-            ("academic_year", "Set the current academic year"),
-            ("classes", "Add classes"),
-            ("sections", "Add sections for this year"),
-            ("subjects", "Add subjects"),
-            ("teachers", "Register teachers"),
-            ("subject_teachers", "Assign teachers to subjects"),
-            ("students", "Register students"),
-            ("parents", "Register parents"),
-        ]
-        steps = [{"key": k, "label": label, "count": counts[k], "done": counts[k] > 0} for k, label in labels]
-        return Response({
-            "current_academic_year": {"id": str(year.id), "name": year.name} if year else None,
-            "steps": steps,
-            "complete": all(s["done"] for s in steps),
-        })
+        return Response(setup_progress())

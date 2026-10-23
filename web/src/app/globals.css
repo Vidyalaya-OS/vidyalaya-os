@@ -214,6 +214,215 @@ body {
   mask-image: radial-gradient(ellipse at 70% 40%, black, transparent 75%);
 }
 
+/* Section guide pictures (see Scene3D). Everything is tinted by --h. */
+.scene3d {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 9rem;
+  height: 9rem;
+  perspective: 700px;
+}
+.scene3d::after {
+  content: "";
+  position: absolute;
+  bottom: 0.6rem;
+  width: 55%;
+  height: 0.9rem;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, hsl(var(--h) 60% 25% / 0.28), transparent);
+  animation: s3-shadow 6s ease-in-out infinite;
+}
+.scene3d-glow {
+  position: absolute;
+  inset: 12%;
+  border-radius: 50%;
+  background: radial-gradient(circle, hsl(var(--h) 90% 62% / 0.35), transparent 70%);
+  filter: blur(10px);
+  animation: s3-glow 5s ease-in-out infinite;
+}
+.scene3d-float {
+  transform-style: preserve-3d;
+  animation: s3-float 6s ease-in-out infinite;
+}
+.scene3d-cube {
+  position: relative;
+  width: 4.5rem;
+  height: 4.5rem;
+  transform-style: preserve-3d;
+  animation: s3-spin 16s linear infinite;
+}
+.scene3d-face {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 0.7rem;
+  color: white;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.28);
+}
+.scene3d-front { background: linear-gradient(135deg, hsl(var(--h) 88% 64%), hsl(calc(var(--h) + 30) 78% 52%)); transform: translateZ(2.25rem); }
+.scene3d-back { background: linear-gradient(135deg, hsl(calc(var(--h) + 30) 78% 56%), hsl(var(--h) 80% 48%)); transform: rotateY(180deg) translateZ(2.25rem); }
+.scene3d-right { background: linear-gradient(135deg, hsl(var(--h) 75% 50%), hsl(calc(var(--h) + 30) 70% 40%)); transform: rotateY(90deg) translateZ(2.25rem); }
+.scene3d-left { background: linear-gradient(135deg, hsl(var(--h) 80% 58%), hsl(calc(var(--h) + 30) 72% 46%)); transform: rotateY(-90deg) translateZ(2.25rem); }
+.scene3d-top { background: hsl(var(--h) 90% 76%); transform: rotateX(90deg) translateZ(2.25rem); }
+.scene3d-bottom { background: hsl(var(--h) 70% 34%); transform: rotateX(-90deg) translateZ(2.25rem); }
+
+.scene3d-iso {
+  position: relative;
+  width: 5.5rem;
+  height: 5.5rem;
+  transform-style: preserve-3d;
+  transform: rotateX(58deg) rotateZ(-45deg);
+  animation: s3-sway 9s ease-in-out infinite alternate;
+}
+.scene3d-tile {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 1rem;
+  color: white;
+  background: linear-gradient(135deg, hsl(calc(var(--h) + var(--i) * 22) 85% calc(52% + var(--i) * 6%)), hsl(calc(var(--h) + var(--i) * 22 + 25) 75% calc(44% + var(--i) * 6%)));
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.3), 0 12px 20px -8px hsl(var(--h) 70% 18% / 0.55);
+  transform: translateZ(calc(var(--i) * 14px));
+  animation: s3-lift 4.5s ease-in-out infinite;
+  animation-delay: calc(var(--i) * -0.6s);
+}
+.scene3d-plate {
+  position: absolute;
+  inset: -8%;
+  border-radius: 1.1rem;
+  background: hsl(var(--h) 70% 60% / 0.16);
+  box-shadow: inset 0 0 0 1px hsl(var(--h) 70% 60% / 0.3);
+}
+.scene3d-bar {
+  --bh: calc(var(--v) * 4.2rem);
+  position: absolute;
+  top: 40%;
+  left: calc(4% + var(--i) * 24%);
+  width: 1.05rem;
+  height: 1.05rem;
+  transform-style: preserve-3d;
+  transform-origin: center;
+  animation: s3-grow 3.6s ease-in-out infinite;
+  animation-delay: calc(var(--i) * -0.7s);
+}
+.scene3d-bar > div {
+  position: absolute;
+}
+.scene3d-bar-top {
+  inset: 0;
+  background: hsl(calc(var(--h) + var(--i) * 18) 92% 74%);
+  transform: translateZ(var(--bh));
+}
+.scene3d-bar-front {
+  left: 0;
+  top: 100%;
+  width: 100%;
+  height: var(--bh);
+  transform-origin: top;
+  transform: rotateX(90deg);
+  background: hsl(calc(var(--h) + var(--i) * 18) 80% 52%);
+}
+.scene3d-bar-side {
+  right: 100%;
+  top: 0;
+  width: var(--bh);
+  height: 100%;
+  transform-origin: right;
+  transform: rotateY(90deg);
+  background: hsl(calc(var(--h) + var(--i) * 18) 75% 42%);
+}
+
+.scene3d-sphere {
+  display: grid;
+  place-items: center;
+  width: 4.6rem;
+  height: 4.6rem;
+  border-radius: 50%;
+  color: white;
+  background: radial-gradient(circle at 32% 28%, hsl(var(--h) 95% 82%), hsl(var(--h) 82% 58%) 42%, hsl(calc(var(--h) + 30) 75% 36%));
+  box-shadow: 0 14px 28px -10px hsl(var(--h) 70% 25% / 0.6);
+}
+.scene3d-ring {
+  position: absolute;
+  width: 8.2rem;
+  height: 8.2rem;
+  border-radius: 50%;
+  border: 1.5px dashed hsl(var(--h) 80% 60% / 0.55);
+  transform-style: preserve-3d;
+  animation: s3-ring 12s linear infinite;
+}
+.scene3d-moon {
+  position: absolute;
+  top: calc(50% - 0.45rem);
+  left: calc(50% - 0.45rem);
+  width: 0.9rem;
+  height: 0.9rem;
+  border-radius: 50%;
+  background: hsl(calc(var(--h) + 40 + var(--i) * 60) 85% 60%);
+  box-shadow: 0 0 10px hsl(calc(var(--h) + 40 + var(--i) * 60) 85% 60% / 0.7);
+  transform: rotateZ(calc(var(--i) * 120deg)) translateX(4.1rem);
+}
+
+@keyframes s3-spin {
+  from { transform: rotateX(-22deg) rotateY(0deg); }
+  to { transform: rotateX(-22deg) rotateY(360deg); }
+}
+@keyframes s3-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-9px); }
+}
+@keyframes s3-shadow {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(0.82); opacity: 0.7; }
+}
+@keyframes s3-glow {
+  0%, 100% { opacity: 0.7; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.08); }
+}
+@keyframes s3-sway {
+  from { transform: rotateX(58deg) rotateZ(-60deg); }
+  to { transform: rotateX(52deg) rotateZ(-28deg); }
+}
+@keyframes s3-lift {
+  0%, 100% { transform: translateZ(calc(var(--i) * 14px)); }
+  50% { transform: translateZ(calc(var(--i) * 24px + 4px)); }
+}
+@keyframes s3-grow {
+  0%, 100% { transform: scaleZ(1); }
+  50% { transform: scaleZ(0.5); }
+}
+@keyframes s3-ring {
+  from { transform: rotateX(72deg) rotateZ(0deg); }
+  to { transform: rotateX(72deg) rotateZ(360deg); }
+}
+
+/* Section guides: a faint wash and number chips in the section's own hue. */
+.guide-wash {
+  background: radial-gradient(ellipse at 0% 0%, hsl(var(--h) 90% 60% / 0.12), transparent 55%), radial-gradient(ellipse at 100% 100%, hsl(calc(var(--h) + 40) 90% 60% / 0.08), transparent 50%);
+}
+.guide-chip {
+  background: linear-gradient(135deg, hsl(var(--h) 80% 55%), hsl(calc(var(--h) + 30) 75% 45%));
+  box-shadow: 0 4px 10px -4px hsl(var(--h) 70% 35% / 0.6);
+}
+.guide-steps > li {
+  animation: var(--animate-enter);
+  animation-delay: var(--d);
+}
+
+/* The next step on the setup path breathes, so the eye finds it. */
+.pulse-ring {
+  box-shadow: 0 0 0 0 var(--ring);
+  animation: pulse-ring 2.2s ease-out infinite;
+}
+@keyframes pulse-ring {
+  0% { box-shadow: 0 0 0 0 var(--ring); }
+  70% { box-shadow: 0 0 0 10px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+
 /* Sections that rise into view as the page scrolls (see Reveal). */
 .reveal {
   opacity: 0;

@@ -12,7 +12,7 @@ from apps.academics.models import AcademicYear, Section
 from apps.accounts import audit
 from apps.accounts.models import Role
 from apps.accounts.permissions import SchoolPermission
-from apps.people.models import Enrollment
+from apps.people.models import Enrollment, Teacher
 from apps.people.scoping import (
     active_enrollments,
     can_manage_section,
@@ -24,9 +24,13 @@ from apps.people.scoping import (
 )
 from apps.tenancy.context import school_today
 
-from .models import AttendanceRecord
-from .serializers import SheetSerializer
+from .models import AWAY, AttendanceRecord, TeacherAttendance
+from .serializers import SheetSerializer, TeacherSheetSerializer
 from .stats import summarize
+
+# Who marks whom: a section's teachers mark its students, and school admins
+# mark teachers. Admins can read every student report but never mark one.
+ADMINS_MARK_TEACHERS = "School admins mark teacher attendance. A section's own teachers mark its students."
 
 def parse_date(value, default=None, field="date"):
     if not value:
@@ -71,18 +75,44 @@ class StaffView(APIView):
         return section
 
 
+def away_status(teacher, day):
+    """'absent' or 'leave' when the office marked this teacher away that day."""
+    if teacher is None:
+        return None
+    return (TeacherAttendance.objects.filter(teacher=teacher, date=day, status__in=AWAY)
+            .values_list("status", flat=True).first())
+
+
+def mark_block_reason(request, section, day):
+    """Why this person may not mark the section's students on that day, or None."""
+    if not has_role(request, Role.TEACHER):
+        return ADMINS_MARK_TEACHERS
+    teacher = teacher_for(request)
+    if section.pk not in teacher_section_ids(teacher):
+        return "Only teachers of this section can mark its attendance."
+    away = away_status(teacher, day)
+    if away:
+        label = AttendanceRecord.Status(away).label.lower()
+        return f"You are marked {label} on this day, so another teacher of the section marks it."
+    return None
+
+
 class AttendanceSheetView(StaffView):
     """GET a section's roll call for a day; POST it back to save.
 
-    Everyone starts present, so a teacher only taps the absent or late ones.
+    Admins and the section's teachers can read it; only the section's
+    teachers can save it. Everyone starts present, so a teacher only taps the
+    absent or late ones.
     """
+
+    write_roles = {Role.TEACHER}
 
     def get(self, request):
         section = self.section_or_403(request, request.query_params.get("section"))
         day = parse_date(request.query_params.get("date"), school_today())
-        return Response(self.sheet(section, day))
+        return Response(self.sheet(section, day, mark_block_reason(request, section, day)))
 
-    def sheet(self, section, day):
+    def sheet(self, section, day, blocked=None):
         records = {
             r.enrollment_id: r
             for r in AttendanceRecord.objects.filter(enrollment__section=section, date=day).select_related(
@@ -104,6 +134,7 @@ class AttendanceSheetView(StaffView):
             "marked": bool(records), "marked_by": last.marked_by.name if last else None,
             "updated_at": last.updated_at if last else None,
             "students": students, "summary": summarize(s["status"] for s in students),
+            "can_mark": blocked is None, "cannot_mark_reason": blocked,
         }
 
     @transaction.atomic
@@ -111,7 +142,9 @@ class AttendanceSheetView(StaffView):
         data = SheetSerializer(data=request.data)
         data.is_valid(raise_exception=True)
         section, day = data.validated_data["section"], data.validated_data["date"]
-        self.section_or_403(request, section.pk)
+        blocked = mark_block_reason(request, section, day)
+        if blocked:
+            raise PermissionDenied(blocked)
         today = school_today()
         if day > today:
             raise ValidationError({"date": "Attendance cannot be marked for a future date."})
@@ -257,3 +290,114 @@ class PendingAttendanceView(StaffView):
         return Response({"date": day, "sections": [
             {"section": str(s.pk), "section_name": str(s), "marked": s.pk in marked} for s in sections
         ]})
+
+
+def check_mark_date(day):
+    if day > school_today():
+        raise ValidationError({"date": "Attendance cannot be marked for a future date."})
+
+
+class TeacherAttendanceSheetView(APIView):
+    """GET every active teacher's attendance for a day; POST it back to save.
+
+    School admins only. Teacher attendance is required every working day, so
+    the response lists who is still unmarked. Everyone starts present.
+    """
+
+    permission_classes = [SchoolPermission]
+    read_roles = {Role.ADMIN}
+    write_roles = {Role.ADMIN}
+
+    def get(self, request):
+        day = parse_date(request.query_params.get("date"), school_today())
+        return Response(self.sheet(day))
+
+    def sheet(self, day):
+        teachers = Teacher.objects.filter(status=Teacher.Status.ACTIVE).select_related("user").order_by("user__name")
+        records = {r.teacher_id: r for r in TeacherAttendance.objects.filter(date=day).select_related("marked_by")}
+        last = max(records.values(), key=lambda r: r.updated_at, default=None)
+        rows = [
+            {
+                "teacher": str(t.pk), "name": t.user.name, "employee_no": t.employee_no,
+                "status": records[t.pk].status if t.pk in records else AttendanceRecord.Status.PRESENT,
+                "remark": records[t.pk].remark if t.pk in records else "",
+                "marked": t.pk in records,
+            }
+            for t in teachers
+        ]
+        unmarked = [r["name"] for r in rows if not r["marked"]]
+        return {
+            "date": day, "teachers": rows, "summary": summarize(r["status"] for r in rows if r["marked"]),
+            "marked": bool(rows) and not unmarked, "unmarked": unmarked,
+            "marked_by": last.marked_by.name if last else None, "updated_at": last.updated_at if last else None,
+        }
+
+    @transaction.atomic
+    def post(self, request):
+        data = TeacherSheetSerializer(data=request.data)
+        data.is_valid(raise_exception=True)
+        day = data.validated_data["date"]
+        check_mark_date(day)
+        teachers = set(Teacher.objects.filter(status=Teacher.Status.ACTIVE).values_list("pk", flat=True))
+        given = {}
+        for row in data.validated_data["records"]:
+            if row["teacher"].pk not in teachers:
+                raise ValidationError({"records": f"{row['teacher']} is not an active teacher."})
+            given[row["teacher"].pk] = row
+        existing = {r.teacher_id: r for r in TeacherAttendance.objects.filter(teacher_id__in=teachers, date=day)}
+        changed = []
+        for pk in teachers:
+            row = given.get(pk, {"status": AttendanceRecord.Status.PRESENT, "remark": ""})
+            record = existing.get(pk)
+            if record is None:
+                TeacherAttendance.objects.create(teacher_id=pk, date=day, status=row["status"],
+                                                 remark=row.get("remark", ""), marked_by=request.user)
+            elif (record.status, record.remark) != (row["status"], row.get("remark", "")):
+                changed.append({"teacher": str(pk), "from": record.status, "to": row["status"]})
+                record.status, record.remark, record.marked_by = row["status"], row.get("remark", ""), request.user
+                record.save(update_fields=["status", "remark", "marked_by", "updated_at"])
+        if changed and day < school_today():
+            audit.record(request.user, "teacher_attendance.change_after_day", "school", request.school.pk,
+                         after={"date": day.isoformat(), "changes": changed})
+        return Response(self.sheet(day))
+
+
+class TeacherMonthlyReportView(APIView):
+    """Each active teacher over a month. School admins only."""
+
+    permission_classes = [SchoolPermission]
+    read_roles = {Role.ADMIN}
+
+    def get(self, request):
+        first, last = parse_month(request.query_params.get("month"))
+        per = {}
+        for teacher_id, status in TeacherAttendance.objects.filter(date__range=(first, last)).values_list(
+                "teacher_id", "status"):
+            per.setdefault(teacher_id, []).append(status)
+        teachers = Teacher.objects.filter(status=Teacher.Status.ACTIVE).select_related("user").order_by("user__name")
+        return Response({"month": first.strftime("%Y-%m"), "teachers": [
+            {"teacher": str(t.pk), "name": t.user.name, "employee_no": t.employee_no, **summarize(per.get(t.pk, []))}
+            for t in teachers
+        ]})
+
+
+class MyTeacherAttendanceView(APIView):
+    """A teacher's own attendance for a month, as the office marked it."""
+
+    permission_classes = [SchoolPermission]
+    read_roles = {Role.TEACHER}
+
+    def get(self, request):
+        teacher = teacher_for(request)
+        if teacher is None:
+            raise PermissionDenied("Your teacher profile is not set up yet. Ask your school admin.")
+        first, last = parse_month(request.query_params.get("month"))
+        month = list(TeacherAttendance.objects.filter(teacher=teacher, date__range=(first, last)).order_by("date"))
+        return Response({
+            "teacher": str(teacher.pk), "name": teacher.user.name, "month": first.strftime("%Y-%m"),
+            "first_day": first, "last_day": last,
+            "days": [{"date": r.date, "status": r.status, "remark": r.remark} for r in month],
+            "month_summary": summarize(r.status for r in month),
+            "today": TeacherAttendance.objects.filter(teacher=teacher, date=school_today()).values_list(
+                "status", flat=True).first(),
+        })

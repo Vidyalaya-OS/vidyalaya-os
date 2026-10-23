@@ -1,11 +1,14 @@
 "use client";
 
 import {
-  BookOpen, CalendarDays, CircleCheck, ClipboardCheck, Clock, FileSpreadsheet, GraduationCap, Lightbulb, Phone,
-  TriangleAlert, Upload, UserPlus, Users, Wallet,
+  ArrowRight, BookMarked, BookOpen, CalendarDays, CalendarRange, Check, CircleCheck, ClipboardCheck, Clock, FileSpreadsheet,
+  GraduationCap, HeartHandshake, Layers, Lightbulb, Link2, Lock, Phone, Route, Rows3, TriangleAlert, Upload, UserCheck,
+  UserPlus, UserRoundCheck, Users, Wallet,
 } from "lucide-react";
 import Link from "next/link";
+import { useTeacherRegister } from "@/components/AdminReminders";
 import { BarList, Donut, SplitBars } from "@/components/charts";
+import { Scene3D, SceneKind } from "@/components/Scene3D";
 import { Schedule } from "@/components/Schedule";
 import { Async, Badge, ButtonLink, Card, Empty, Loading, Progress, Stat, cx } from "@/components/ui";
 import { Page } from "@/lib/api";
@@ -47,17 +50,6 @@ type Summary = {
 type Daily = { sections: (AttendanceSummary & { section: string; section_name: string; students: number; marked: boolean })[]; total: AttendanceSummary; unmarked_sections: number };
 type Defaulter = BalanceRow & { parents: { name: string; email: string | null; phone: string | null }[] };
 
-const STEP_LINKS: Record<string, string> = {
-  academic_year: "/app/setup",
-  classes: "/app/setup",
-  sections: "/app/setup",
-  subjects: "/app/setup",
-  teachers: "/app/teachers",
-  subject_teachers: "/app/setup",
-  students: "/app/students",
-  parents: "/app/parents",
-};
-
 /** The school admin's first screen: today's attendance, fee collection,
  * who is overdue, and setup steps still to do. */
 export function AdminHome() {
@@ -71,8 +63,17 @@ export function AdminHome() {
   const overdueTotal = fees.data ? Number(fees.data.totals.overdue) : 0;
   const billed = fees.data ? Number(fees.data.totals.due) - Number(fees.data.totals.discount) : 0;
 
+  const incomplete = setup.data && !setup.data.complete;
+
   return (
     <div className="space-y-6">
+      <div className={cx("grid gap-5", incomplete && "lg:grid-cols-5")}>
+        {incomplete && <NextStepHero setup={setup.data!} className="lg:col-span-3" />}
+        <TeacherRegisterCard className={incomplete ? "lg:col-span-2" : undefined} />
+      </div>
+
+      {incomplete && <SetupPath setup={setup.data!} />}
+
       <div className="stagger grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat label="Students" value={count("students") ?? "-"} icon={<GraduationCap aria-hidden />} href="/app/students" hint={count("teachers") != null ? `${count("teachers")} teacher${count("teachers") === 1 ? "" : "s"}` : undefined} />
         <Stat
@@ -104,17 +105,16 @@ export function AdminHome() {
 
       <QuickActions actions={[
         { href: "/app/students", label: "Add a student", icon: <UserPlus aria-hidden /> },
-        { href: "/app/attendance", label: "Attendance", icon: <ClipboardCheck aria-hidden />, hint: "Mark or see reports" },
+        { href: "/app/attendance", label: "Teacher attendance", icon: <UserRoundCheck aria-hidden />, hint: "Mark every day" },
         { href: "/app/fees", label: "Record a payment", icon: <Wallet aria-hidden /> },
         { href: "/app/timetable", label: "Timetable", icon: <Clock aria-hidden /> },
         { href: "/app/exams", label: "Tests & marks", icon: <FileSpreadsheet aria-hidden /> },
         { href: "/app/import", label: "Import from Excel", icon: <Upload aria-hidden /> },
       ]} />
 
-      {setup.data && !setup.data.complete && <SetupCard setup={setup.data} />}
 
       <div className="grid gap-5 lg:grid-cols-2">
-        <Card title="Attendance today" icon={<ClipboardCheck aria-hidden />} actions={<Link className="text-sm font-medium text-brand" href="/app/attendance">Reports</Link>}>
+        <Card title="Students in class today" description="Marked by each section's teachers" icon={<ClipboardCheck aria-hidden />} actions={<Link className="text-sm font-medium text-brand" href="/app/attendance">Reports</Link>}>
           <Async state={daily} loading={<Loading variant="text" />}>
             {(d) => (
               <div className="space-y-5">
@@ -181,39 +181,174 @@ export function AdminHome() {
         </Async>
       </Card>
 
-      {setup.data?.complete && <SetupCard setup={setup.data} compact />}
+      {setup.data?.complete && <SetupCard setup={setup.data} />}
     </div>
   );
 }
 
-function SetupCard({ setup, compact }: { setup: SetupStatus; compact?: boolean }) {
-  const done = setup.steps.filter((s) => s.done).length;
-  if (compact) {
+function SetupCard({ setup }: { setup: SetupStatus }) {
+  return (
+    <p className="flex items-center gap-2 text-sm text-soft">
+      <CircleCheck className="size-4 text-green-600" aria-hidden /> School setup is complete ({setup.done} of {setup.steps.length} steps).
+      <Link className="font-medium text-brand" href="/app/setup">Classes &amp; subjects</Link>
+    </p>
+  );
+}
+
+const STEP_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+  academic_year: CalendarRange, classes: Layers, sections: Rows3, subjects: BookMarked, class_subjects: Link2,
+  teachers: Users, subject_teachers: UserCheck, class_teachers: UserRoundCheck, timetable: Clock,
+  students: GraduationCap, parents: HeartHandshake, fees: Wallet,
+};
+const STEP_SCENES: Record<string, SceneKind> = {
+  academic_year: "cube", classes: "stack", sections: "stack", subjects: "cube", class_subjects: "stack",
+  teachers: "orbit", subject_teachers: "orbit", class_teachers: "orbit", timetable: "stack",
+  students: "orbit", parents: "orbit", fees: "bars",
+};
+/** Why each step comes where it does on the path. */
+const STEP_WHY: Record<string, string> = {
+  academic_year: "Classes, fees and reports all belong to a year, so the year comes first.",
+  classes: "Classes are the frame every student, subject and fee hangs on.",
+  sections: "Students sit in sections, and attendance is taken section by section.",
+  subjects: "Make one list of the school's subjects before giving them to sections.",
+  class_subjects: "Each section needs its subjects before teachers can be allocated to them.",
+  teachers: "Teachers need accounts before they can be allocated to subjects.",
+  subject_teachers: "A subject's teacher marks that section's attendance and enters its marks.",
+  class_teachers: "The class teacher takes the section's daily roll call.",
+  timetable: "With subjects and teachers in place, the week can be planned.",
+  students: "Sections are ready, so students can be enrolled into them.",
+  parents: "Linked parents follow attendance, results and fees from home.",
+  fees: "What each class pays, so you can bill students and take payments.",
+};
+
+/** The one next thing to do to finish setting up the school. */
+function NextStepHero({ setup, className }: { setup: SetupStatus; className?: string }) {
+  const step = setup.steps.find((s) => s.key === setup.next) ?? setup.steps.find((s) => !s.done)!;
+  const index = setup.steps.indexOf(step);
+  const Icon = STEP_ICONS[step.key] ?? Layers;
+  return (
+    <section className={cx("bg-aurora relative isolate overflow-hidden rounded-2xl p-5 text-white shadow-[var(--shadow-lift)] sm:p-6", className)} aria-label="Next setup step">
+      <div className="bg-grid pointer-events-none absolute inset-0 -z-10" aria-hidden />
+      <div className="flex items-center gap-5">
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-semibold uppercase tracking-wider text-white/75">Next step · {index + 1} of {setup.steps.length}</p>
+          <h2 className="mt-1 text-xl font-bold leading-tight sm:text-2xl">{step.label}</h2>
+          <p className="mt-2 text-sm text-white/85">{step.detail}</p>
+          <p className="mt-1 text-sm text-white/70">{STEP_WHY[step.key]}</p>
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <Link href={step.href} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-white px-4 text-sm font-semibold text-slate-900 shadow-sm transition hover:-translate-y-px hover:shadow-md active:scale-[0.97]">
+              <Icon className="size-4" aria-hidden /> Do this now <ArrowRight className="size-4" aria-hidden />
+            </Link>
+            <span className="text-sm text-white/80">{setup.done} of {setup.steps.length} done</span>
+          </div>
+          <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-white/20" role="progressbar" aria-label="Setup progress" aria-valuenow={setup.done} aria-valuemin={0} aria-valuemax={setup.steps.length}>
+            <div className="h-full origin-left animate-grow rounded-full bg-white" style={{ width: `${(setup.done / setup.steps.length) * 100}%` }} />
+          </div>
+        </div>
+        <div className="hidden shrink-0 sm:block"><Scene3D kind={STEP_SCENES[step.key] ?? "cube"} icon={Icon} hue={205} /></div>
+      </div>
+    </section>
+  );
+}
+
+/** Every setup step in order: done, next, ready, or waiting on an earlier step. */
+function SetupPath({ setup }: { setup: SetupStatus }) {
+  const labels = Object.fromEntries(setup.steps.map((s) => [s.key, s.label]));
+  const done = new Set(setup.steps.filter((s) => s.done).map((s) => s.key));
+  return (
+    <Card title="Your setup path" icon={<Route aria-hidden />} description="Follow it top to bottom: each step builds on the ones before it.">
+      <ol className="stagger grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
+        {setup.steps.map((s, i) => {
+          const Icon = STEP_ICONS[s.key] ?? Layers;
+          const isNext = s.key === setup.next;
+          const waitingOn = s.requires.find((r) => !done.has(r));
+          const body = (
+            <>
+              <span className={cx(
+                "relative flex size-9 shrink-0 items-center justify-center rounded-full text-sm font-bold",
+                s.done ? "bg-green-600 text-white" : isNext ? "pulse-ring bg-brand text-white dark:text-slate-950" : s.ready ? "bg-brand-soft text-brand" : "bg-muted text-soft",
+              )}>
+                {s.done ? <Check className="size-4" aria-hidden /> : !s.ready ? <Lock className="size-3.5" aria-hidden /> : i + 1}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="flex items-center gap-1.5 text-sm font-semibold leading-snug">
+                  <Icon className="size-4 shrink-0 text-soft" aria-hidden /> {s.label}
+                </span>
+                <span className="mt-0.5 block text-xs text-soft">
+                  {!s.done && !s.ready && waitingOn ? `After: ${labels[waitingOn]}` : s.detail}
+                </span>
+              </span>
+              {isNext && <Badge tone="info">Next</Badge>}
+            </>
+          );
+          const cls = cx(
+            "flex h-full items-start gap-3 rounded-xl border p-3 transition",
+            isNext ? "border-brand/50 bg-brand-soft/40" : s.done ? "border-line bg-surface" : "border-line bg-surface",
+            !s.ready && !s.done && "opacity-70",
+          );
+          return (
+            <li key={s.key}>
+              {s.ready || s.done ? (
+                <Link href={s.href} className={cx(cls, "hover:-translate-y-px hover:border-brand/40 hover:shadow-[var(--shadow-card)]")}>{body}</Link>
+              ) : (
+                <div className={cls}>{body}</div>
+              )}
+            </li>
+          );
+        })}
+      </ol>
+    </Card>
+  );
+}
+
+/** Today's teacher register on the admin's home. Teacher attendance is
+ * required every working day, so this stays loud until it is saved. */
+function TeacherRegisterCard({ className }: { className?: string }) {
+  const sheet = useTeacherRegister();
+  const d = sheet.data;
+  if (!d) return <Card className={className} title="Teacher attendance" icon={<UserRoundCheck aria-hidden />}><Loading variant="text" /></Card>;
+  if (d.teachers.length === 0) {
     return (
-      <p className="flex items-center gap-2 text-sm text-soft">
-        <CircleCheck className="size-4 text-green-600" aria-hidden /> School setup is complete ({done} of {setup.steps.length} steps).
-        <Link className="font-medium text-brand" href="/app/setup">Classes &amp; subjects</Link>
-      </p>
+      <Card className={className} title="Teacher attendance" icon={<UserRoundCheck aria-hidden />}>
+        <Empty title="No teachers yet" action={<ButtonLink href="/app/teachers" size="sm">Add teachers</ButtonLink>}>Once teachers are added, you mark their attendance here every day.</Empty>
+      </Card>
+    );
+  }
+  if (!d.marked) {
+    return (
+      <section className={cx("relative overflow-hidden rounded-2xl border border-amber-300 bg-amber-50 p-5 shadow-[var(--shadow-card)] dark:border-amber-800 dark:bg-amber-950/40", className)} aria-label="Teacher attendance">
+        <div className="flex items-start gap-3">
+          <span className="relative flex size-10 shrink-0 items-center justify-center rounded-xl bg-amber-500 text-white">
+            <UserRoundCheck className="size-5" aria-hidden />
+            <span className="absolute -right-1 -top-1 size-3 animate-ping rounded-full bg-red-500" aria-hidden />
+            <span className="absolute -right-1 -top-1 size-3 rounded-full bg-red-500" aria-hidden />
+          </span>
+          <div className="min-w-0">
+            <p className="text-xs font-semibold uppercase tracking-wider text-amber-800 dark:text-amber-300">Required today</p>
+            <h2 className="text-lg font-semibold leading-snug text-amber-950 dark:text-amber-50">Mark teacher attendance</h2>
+            <p className="mt-1 text-sm text-amber-900/85 dark:text-amber-100/80">{d.unmarked.length} of {d.teachers.length} teachers not marked yet. It takes a minute: everyone starts present.</p>
+          </div>
+        </div>
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {d.unmarked.slice(0, 6).map((n) => <Badge key={n} tone="warn">{n}</Badge>)}
+          {d.unmarked.length > 6 && <Badge tone="neutral">+{d.unmarked.length - 6} more</Badge>}
+        </div>
+        <ButtonLink href="/app/attendance" className="mt-4 w-full sm:w-auto"><UserRoundCheck aria-hidden /> Mark teachers now</ButtonLink>
+      </section>
     );
   }
   return (
-    <Card title="Finish setting up your school" description={`${done} of ${setup.steps.length} steps done`} icon={<CircleCheck aria-hidden />}>
-      <Progress value={(done / setup.steps.length) * 100} className="mb-4" label="Setup progress" />
-      <ol className="stagger grid gap-2 sm:grid-cols-2">
-        {setup.steps.map((s, i) => (
-          <li key={s.key}>
-            <Link href={STEP_LINKS[s.key] ?? "/app/setup"} className="flex items-center justify-between gap-3 rounded-xl border border-line px-3 py-2.5 text-sm transition hover:border-brand/40 hover:bg-brand-soft/40">
-              <span className="flex items-center gap-3">
-                <span className={cx("flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold", s.done ? "bg-green-600 text-white" : "bg-muted text-soft")}>
-                  {s.done ? "✓" : i + 1}
-                </span>
-                {s.label}
-              </span>
-              <span className="tabular-nums text-soft">{s.count}</span>
-            </Link>
-          </li>
-        ))}
-      </ol>
+    <Card className={className} title="Teachers marked today" icon={<UserRoundCheck aria-hidden />} description={`By ${d.marked_by}`} actions={<Link className="text-sm font-medium text-brand" href="/app/attendance">Change</Link>}>
+      <Donut
+        size={100}
+        segments={[
+          { label: "Present", value: d.summary.present, tone: "good" },
+          { label: "Late", value: d.summary.late, tone: "warn" },
+          { label: "Absent", value: d.summary.absent, tone: "bad" },
+          { label: "On leave", value: d.summary.leave, tone: "neutral" },
+        ]}
+        centre={<span className="text-base font-bold tabular-nums">{d.summary.present + d.summary.late}/{d.teachers.length}</span>}
+      />
     </Card>
   );
 }
@@ -221,7 +356,7 @@ function SetupCard({ setup, compact }: { setup: SetupStatus; compact?: boolean }
 /** The teacher's first screen: today's classes, what to mark, open quizzes,
  * homework due and marks still to enter. */
 export function TeacherHome() {
-  const me = useApi<Page<Teacher>>("teachers/");
+  const me = useApi<Page<Teacher>>("teachers/?mine=true");
   const today = useApi<TimetableEntry[]>("timetable/?mine=true&day=today");
   const pending = useApi<{ date: string; sections: { section: string; section_name: string; marked: boolean }[] }>("attendance/pending");
   const quizzes = useApi<Page<Quiz>>("quizzes/?mine=true&state=open");

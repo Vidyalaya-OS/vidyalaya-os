@@ -3,6 +3,7 @@
 import { ShieldOff } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
+import { TeacherAttendanceBar } from "@/components/AdminReminders";
 import { AppShell } from "@/components/AppShell";
 import { Alert, ButtonLink, Empty, PageLoader } from "@/components/ui";
 import { Role } from "@/lib/api";
@@ -48,7 +49,7 @@ export default function SchoolLayout({ children }: { children: React.ReactNode }
         onSignOut={() => signOut().then(() => router.replace("/login"))}
         banner={school.school.status === "suspended" ? (
           <div className="mb-5"><Alert tone="warn" title="This school is suspended">You can look around, but changes are switched off.</Alert></div>
-        ) : undefined}
+        ) : portal === "admin" && pathname !== "/app/attendance" && pathname !== "/app" ? <TeacherAttendanceBar /> : undefined}
       >
         {blocked ? (
           <Empty icon={<ShieldOff aria-hidden />} title="This section isn't part of your portal" action={<ButtonLink href="/app">Go to Home</ButtonLink>}>

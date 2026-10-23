@@ -76,7 +76,7 @@ function AdminQuizzes() {
 }
 
 function TeacherQuizzes() {
-  const me = useApi<Page<Teacher>>("teachers/");
+  const me = useApi<Page<Teacher>>("teachers/?mine=true");
   const pairs = rows(me.data)[0]?.teaches ?? [];
   const [version, setVersion] = useState(0);
   const [tab, setTab] = useState<"open" | "upcoming" | "closed">("open");

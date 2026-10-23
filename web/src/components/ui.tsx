@@ -3,6 +3,7 @@
 import { ArrowLeft, CircleAlert, CircleCheck, Inbox, Info, LoaderCircle, RotateCw, WifiOff } from "lucide-react";
 import Link from "next/link";
 import { forwardRef, useEffect, useId, useRef, useState } from "react";
+import { SectionGuide } from "@/components/SectionGuide";
 
 export function cx(...parts: (string | false | null | undefined)[]) {
   return parts.filter(Boolean).join(" ");
@@ -267,6 +268,7 @@ export function PageHeader({ title, subtitle, actions, back }: { title: React.Re
         </div>
         {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
       </div>
+      {!back && <div className="mt-5 empty:hidden"><SectionGuide /></div>}
     </div>
   );
 }

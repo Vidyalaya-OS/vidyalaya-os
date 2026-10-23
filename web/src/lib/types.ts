@@ -63,9 +63,22 @@ export type Guardian = {
   relation: string;
   children: { id: string; name: string; admission_no: string; section_name: string | null; is_primary: boolean }[];
 };
+export type SetupStep = {
+  key: string;
+  label: string;
+  href: string;
+  count: number;
+  done: boolean;
+  /** Its earlier steps are all done, so it can be worked on now. */
+  ready: boolean;
+  requires: string[];
+  detail: string;
+};
 export type SetupStatus = {
   current_academic_year: { id: string; name: string } | null;
-  steps: { key: string; label: string; count: number; done: boolean }[];
+  steps: SetupStep[];
+  done: number;
+  next: string | null;
   complete: boolean;
 };
 
@@ -98,6 +111,28 @@ export type AttendanceSheet = {
   updated_at: string | null;
   students: { enrollment: string; student: string; name: string; roll_no: number | null; admission_no: string; status: AttendanceStatus; remark: string; marked: boolean }[];
   summary: AttendanceSummary;
+  /** Only the section's own teachers can save; admins read it. */
+  can_mark: boolean;
+  cannot_mark_reason: string | null;
+};
+export type TeacherAttendanceSheet = {
+  date: string;
+  marked: boolean;
+  unmarked: string[];
+  marked_by: string | null;
+  updated_at: string | null;
+  teachers: { teacher: string; name: string; employee_no: string; status: AttendanceStatus; remark: string; marked: boolean }[];
+  summary: AttendanceSummary;
+};
+export type MyTeacherAttendance = {
+  teacher: string;
+  name: string;
+  month: string;
+  first_day: string;
+  last_day: string;
+  today: AttendanceStatus | null;
+  days: { date: string; status: AttendanceStatus; remark: string }[];
+  month_summary: AttendanceSummary;
 };
 export type StudentAttendance = {
   student: string;
