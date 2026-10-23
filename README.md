@@ -28,7 +28,10 @@ Notifications and announcements come next.
 
 The web app in `web/` works on phones, tablets and computers, in light and dark mode.
 
-- **One layout for every role.** On a computer there is a sidebar; on a phone there is a top bar, four tabs at the bottom for that role's most used screens, and a "More" drawer for the rest. Each person sees only the screens their roles allow. Someone with several roles (a teacher who is also a parent) switches home screens from the top of Home.
+- **Landing page** at `/`: the 3D SMS logo, a "Choose who you are" explainer for owners, admins, teachers, students and parents, how it works, features, privacy and an FAQ (including what the Parent code is). Signed-in people go straight to their portal.
+- **One layout for every role.** On a computer there is a sidebar; on a phone there is a top bar, four tabs at the bottom for that role's most used screens, and a "More" drawer for the rest. The menu follows the person's current **portal** (Admin, Teacher, Student or Parent), so an admin sees admin sections only. Someone with several roles switches portal at the top of the menu or on Home; a link into another of their portals switches automatically, and a page none of their roles may open shows a clear message.
+- **Owner space**: a banner with the 3D logo, totals that tilt in 3D, a schools table (School, Plan, Students, Teachers, Fees this year, Status) with Active, Suspend and Archive buttons and Resend admin invite, status filters, students per school, plan mix, and schools that need a look. Onboarding is four steps (school, academic year, first admin, review) with a live preview.
+- **Sign-in**: password, or the **Parent code** for parent accounts: a 6-digit code sent to the parent's phone or email, valid once for 10 minutes (printed in the API console while developing).
 - **Portals**: the platform owner sees every school with head counts and fees; admins get the school office; teachers get their classes; students get their own record; parents get each child's record, with a child switcher at the top.
 - **Calendar**: one month of homework due dates, tests, quizzes closing and fee installments, with filters, the chosen day's items and that day's classes. The timetable has a week grid and a day-by-day view with the current class highlighted. Attendance has a month calendar, the month's split and a six-month trend.
 - **Design**: Plus Jakarta Sans at a 16px base size, a shared set of components (`src/components/ui.tsx`), simple charts (`charts.tsx`), tables that turn into cards on phones, and light animation (page entry, count-up numbers, growing bars). Animation is switched off for people who ask their device for reduced motion. The theme button cycles system, light and dark.
@@ -53,6 +56,8 @@ backend/   Django 6 + Django REST Framework API
   apps/fees/       fee heads and structures, dues, payments, receipts, balances
   apps/quizzes/    topics, question bank, quizzes, attempts and scoring
   apps/dashboards/ the student and parent home screens
+  apps/core/       public app config (catalog.py, GET /api/config) and demo data (demo.py)
+  config/demo_data.json  the demo platform: schools, people, fees, quizzes (edit to change the demo)
   tests/           API and isolation tests
 web/       Next.js web app
 ```
@@ -70,7 +75,7 @@ cd backend
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 python manage.py migrate        # settings come from environment variables; see .env.example
-python manage.py seed_demo      # optional: two demo schools with people, a timetable, attendance, marks, fees and quizzes
+python manage.py seed_demo      # optional: the demo from config/demo_data.json (or set DEMO_AUTOLOAD=true to load it on migrate into an empty database)
 python manage.py runserver      # http://localhost:8000
 
 # 3. Web app, in another terminal
@@ -99,6 +104,17 @@ cd backend && python manage.py test tests
 
 The tests need the database role from `backend/db/init.sql` (it may create a test database). CI runs the same tests plus the web app's lint and build (`.github/workflows/ci.yml`).
 
+## How the API code is organised
+
+Each app keeps the same split, so a change has one obvious home:
+
+- **views.py** decides who may do what (roles, sections they teach, their own children) and shapes the response. Nothing else.
+- **selectors.py** holds read-only queries: lists, filters, totals, a quiz paper, class results.
+- **services.py** holds the rules for changing data: onboarding a school, changing its status, setting and closing a quiz, grading and handing in, recording a payment. Services are plain functions that take plain values, so they are easy to test on their own (see `tests/test_core.py`).
+- **serializers.py** checks input and formats output.
+
+The platform (`apps/tenancy`) and quizzes (`apps/quizzes`) follow this fully; fees, accounts and dashboards already kept their logic in services. Lists the web app shows in forms (plans, boards, time zones, currencies, payment modes) come from `apps/core/catalog.py` through `GET /api/config`; the web app has the same lists built in (`web/src/lib/config.ts`) and uses them if the API can't be reached. Boards and time zones can be replaced with `SCHOOL_BOARDS` and `SCHOOL_TIMEZONES`.
+
 ## How school data is kept separate
 
 - Every school-owned table inherits `TenantModel`, so every row carries `school_id`.
@@ -117,6 +133,7 @@ All paths are under `/api/`, with or without a trailing slash. School endpoints 
 
 | Area | Endpoints |
 |---|---|
+| App config | `config` (public: plans, boards, time zones, currencies, payment modes, and demo logins when `DEMO_LOGINS_VISIBLE` is on) |
 | Login | `auth/login`, `auth/refresh`, `auth/logout`, `auth/me`, `auth/password`, `auth/invites/<token>`, `auth/otp/request`, `auth/otp/verify` |
 | Platform owner | `platform/schools/` (list, create, update), `…/<id>/suspend`, `activate`, `archive`, `resend-admin-invite` |
 | School setup | `school/`, `academic-years/`, `classes/`, `sections/`, `subjects/`, `section-subjects/`, `setup-status` |
