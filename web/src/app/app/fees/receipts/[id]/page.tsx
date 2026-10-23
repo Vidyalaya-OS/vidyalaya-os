@@ -2,7 +2,8 @@
 
 import { useParams } from "next/navigation";
 import { MODES } from "@/components/FeeStatement";
-import { Alert, Button, Loading } from "@/components/ui";
+import { Printer } from "lucide-react";
+import { Alert, Button, ErrorState, Loading } from "@/components/ui";
 import { formatDate, money } from "@/lib/format";
 import { Payment } from "@/lib/types";
 import { useApi } from "@/lib/useApi";
@@ -17,16 +18,17 @@ type Receipt = {
 export default function ReceiptPage() {
   const { id } = useParams<{ id: string }>();
   const receipt = useApi<Receipt>(`payments/${id}/receipt/`);
-  if (receipt.error) return <Alert>{receipt.error}</Alert>;
-  if (!receipt.data) return <Loading />;
+  if (receipt.error && !receipt.data) return <ErrorState message={receipt.error} onRetry={receipt.reload} />;
+  if (!receipt.data) return <Loading variant="text" />;
   const { school, payment: p } = receipt.data;
   const cur = school.currency;
   return (
     <>
-      <div className="mb-4 flex justify-end print:hidden">
-        <Button onClick={() => window.print()}>Print or save as PDF</Button>
+      <div className="mb-4 flex items-center justify-between gap-2 print:hidden">
+        <button onClick={() => window.history.back()} className="text-sm font-medium text-soft hover:text-brand">← Back</button>
+        <Button onClick={() => window.print()}><Printer aria-hidden /> Print or save as PDF</Button>
       </div>
-      <article className="mx-auto max-w-xl rounded-xl border border-line bg-surface p-6 text-sm print:border-0 print:p-0 print:text-black">
+      <article className="mx-auto max-w-xl animate-pop rounded-2xl border border-line bg-surface p-5 text-sm shadow-[var(--shadow-lift)] sm:p-8 print:animate-none print:border-0 print:p-0 print:shadow-none print:text-black">
         <header className="flex items-center gap-4 border-b border-line pb-4">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           {school.logo && <img src={school.logo} alt="" className="h-14 w-14 object-contain" />}

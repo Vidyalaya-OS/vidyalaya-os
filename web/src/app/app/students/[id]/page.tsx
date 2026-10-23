@@ -1,10 +1,13 @@
 "use client";
 
 import { useParams } from "next/navigation";
+import { ArrowRightLeft, History, IdCard, UsersRound } from "lucide-react";
 import { useState } from "react";
+import { useDialog } from "@/components/dialog";
 import { StudentRecord } from "@/components/StudentRecord";
-import { Alert, Badge, Button, Card, DataTable, Field, Loading, PageHeader, Select, statusTone } from "@/components/ui";
-import { api, ApiError, Page } from "@/lib/api";
+import { useToast } from "@/components/toast";
+import { Alert, Avatar, Badge, Button, Card, DataTable, ErrorState, Field, Loading, PageHeader, Select, statusTone } from "@/components/ui";
+import { api, Page } from "@/lib/api";
 import { useSession } from "@/lib/session";
 import { Enrollment, Section, Student } from "@/lib/types";
 import { rows, useApi } from "@/lib/useApi";
@@ -16,59 +19,72 @@ export default function StudentPage() {
   const student = useApi<Student>(`students/${id}/`);
   const history = useApi<Enrollment[]>(`students/${id}/history/`);
   const sections = useApi<Page<Section>>("sections/");
-  const [notice, setNotice] = useState<{ tone: "success" | "error"; text: string } | null>(null);
+  const toast = useToast();
+  const dialog = useDialog();
   const isAdmin = hasRole("admin");
 
-  if (student.error) return <Alert>{student.error}</Alert>;
-  if (!student.data) return <Loading />;
+  if (student.error && !student.data) return <ErrorState message={student.error} onRetry={student.reload} />;
+  if (!student.data) return <><Loading variant="stats" /><div className="mt-5"><Loading variant="cards" /></div></>;
   const s = student.data;
   const reloadAll = () => { student.reload(); history.reload(); };
 
   const run = async (fn: () => Promise<unknown>, ok: string) => {
     try {
       await fn();
-      setNotice({ tone: "success", text: ok });
+      toast.success(ok);
       reloadAll();
     } catch (e) {
-      setNotice({ tone: "error", text: e instanceof ApiError ? e.message : "That did not work." });
+      toast.error(e);
     }
   };
 
   return (
     <>
-      <PageHeader title={s.name} subtitle={`Admission no. ${s.admission_no} · ${s.current_enrollment?.section_name ?? "No section"}`} actions={<Badge tone={statusTone(s.status)}>{s.status}</Badge>} />
-      {notice && <div className="mb-4"><Alert tone={notice.tone}>{notice.text}</Alert></div>}
+      <PageHeader
+        back={{ href: "/app/students", label: "Students" }}
+        title={<span className="flex items-center gap-3"><Avatar name={s.name} size="lg" /><span>{s.name}</span></span>}
+        subtitle={`Admission no. ${s.admission_no} · ${s.current_enrollment?.section_name ?? "No section"}`}
+        actions={<Badge tone={statusTone(s.status)} dot>{s.status}</Badge>}
+      />
       {!isAdmin && <div className="mb-6"><StudentRecord studentId={s.id} /></div>}
       <div className="grid gap-5 lg:grid-cols-2">
-        <Card title="Details">
-          {isAdmin ? <EditStudent student={s} onSaved={() => { setNotice({ tone: "success", text: "Saved." }); reloadAll(); }} /> : (
+        <Card title="Details" icon={<IdCard aria-hidden />}>
+          {isAdmin ? <EditStudent student={s} onSaved={() => { toast.success("Student details saved."); reloadAll(); }} /> : (
             <dl className="grid grid-cols-2 gap-3 text-sm">
               <div><dt className="text-soft">Date of birth</dt><dd>{s.dob ?? "-"}</dd></div>
               <div><dt className="text-soft">Roll number</dt><dd>{s.current_enrollment?.roll_no ?? "-"}</dd></div>
             </dl>
           )}
         </Card>
-        <Card title="Parents">
+        <Card title="Parents" icon={<UsersRound aria-hidden />}>
           {s.guardians.length === 0 ? <p className="text-sm text-soft">No parent linked.</p> : (
             <ul className="space-y-2 text-sm">
               {s.guardians.map((g) => (
-                <li key={g.id} className="flex items-start justify-between gap-2 rounded-lg border border-line px-3 py-2">
+                <li key={g.id} className="flex items-start justify-between gap-2 rounded-xl border border-line px-3 py-2.5">
                   <div>
                     <div className="font-medium">{g.name} {g.is_primary && <Badge>Primary</Badge>}</div>
                     <div className="text-soft">{[g.relation, g.email, g.phone].filter(Boolean).join(" · ")}</div>
                   </div>
-                  {isAdmin && <button className="text-xs text-red-600" onClick={() => run(() => api(`students/${s.id}/guardians/${g.id}/`, { method: "DELETE" }), "Parent unlinked.")}>Unlink</button>}
+                  {isAdmin && <button className="text-sm font-medium text-red-600" onClick={async () => {
+                    if (await dialog.confirm({ title: `Unlink ${g.name}?`, body: `They will no longer see ${s.name}'s records.`, confirmLabel: "Unlink", danger: true })) {
+                      run(() => api(`students/${s.id}/guardians/${g.id}/`, { method: "DELETE" }), "Parent unlinked.");
+                    }
+                  }}>Unlink</button>}
                 </li>
               ))}
             </ul>
           )}
-          {isAdmin && <AddParent studentId={s.id} onDone={() => { setNotice({ tone: "success", text: "Parent linked." }); reloadAll(); }} />}
+          {isAdmin && <AddParent studentId={s.id} onDone={() => { toast.success("Parent linked."); reloadAll(); }} />}
         </Card>
         {isAdmin && s.status === "active" && (
-          <Card title="Move or leave">
-            <MoveForm student={s} sections={rows(sections.data)} onDone={() => { setNotice({ tone: "success", text: "Student moved." }); reloadAll(); }} />
+          <Card title="Move or leave" icon={<ArrowRightLeft aria-hidden />}>
+            <MoveForm student={s} sections={rows(sections.data)} onDone={() => { toast.success("Student moved."); reloadAll(); }} />
             <div className="mt-5 border-t border-line pt-4">
-              <LeaveForm onLeave={(left_on, status) => run(() => api(`students/${s.id}/leave/`, { method: "POST", body: { left_on, status } }), "Marked as left. Their records are kept.")} />
+              <LeaveForm onLeave={async (left_on, status) => {
+                if (await dialog.confirm({ title: `Mark ${s.name} as left?`, body: "Nothing is deleted. Their attendance, marks and fees stay on record.", confirmLabel: "Mark as left", danger: true })) {
+                  run(() => api(`students/${s.id}/leave/`, { method: "POST", body: { left_on, status } }), "Marked as left. Their records are kept.");
+                }
+              }} />
             </div>
           </Card>
         )}
@@ -77,7 +93,7 @@ export default function StudentPage() {
             <Button variant="secondary" onClick={() => run(() => api(`students/${s.id}/rejoin/`, { method: "POST" }), "Student is active again. Assign a section.")}>Mark as active again</Button>
           </Card>
         )}
-        <Card title="Class history">
+        <Card title="Class history" icon={<History aria-hidden />}>
           <DataTable
             rows={history.data ?? []}
             rowKey={(e) => e.id}
@@ -160,7 +176,7 @@ function LeaveForm({ onLeave }: { onLeave: (date: string, status: string) => voi
         <option value="graduated">Graduated</option>
       </Select>
       <div className="flex items-end">
-        <Button variant="danger" disabled={!date} onClick={() => confirm("Mark this student as left? Their records are kept.") && onLeave(date, status)}>Mark as left</Button>
+        <Button variant="danger" disabled={!date} onClick={() => onLeave(date, status)}>Mark as left</Button>
       </div>
     </div>
   );

@@ -24,7 +24,7 @@ export class ApiError extends Error {
   status: number;
   data: unknown;
   constructor(status: number, data: unknown) {
-    super(describeError(data) || `Request failed (${status})`);
+    super(friendly(status, describeError(data)));
     this.status = status;
     this.data = data;
   }
@@ -38,6 +38,19 @@ export class ApiError extends Error {
     }
     return out;
   }
+}
+
+/** Plain-language messages for errors that carry no useful text of their own. */
+function friendly(status: number, text: string): string {
+  // An HTML error page (a proxy or crash page) is not something to show people.
+  if (text && !text.trimStart().startsWith("<")) return text;
+  if (status === 0) return "Could not reach the server. Check your internet connection and try again.";
+  if (status === 403) return "You don't have permission to do that.";
+  if (status === 404) return "We couldn't find that. It may have been removed.";
+  if (status === 413) return "That file is too large.";
+  if (status === 429) return "Too many attempts. Please wait a minute and try again.";
+  if (status >= 500) return "Something went wrong on our side. Please try again in a moment.";
+  return `Request failed (${status}).`;
 }
 
 function describeError(data: unknown): string {
@@ -90,8 +103,8 @@ async function refreshTokens(): Promise<boolean> {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ refresh: session.refresh }),
-    });
-    if (!res.ok) return false;
+    }).catch(() => null);
+    if (!res?.ok) return false;
     const data = await res.json();
     storage.setSession({ ...session, access: data.access, refresh: data.refresh ?? session.refresh });
     return true;
@@ -101,7 +114,7 @@ async function refreshTokens(): Promise<boolean> {
   return refreshing;
 }
 
-type Options = { method?: string; body?: unknown; school?: string | null; auth?: boolean };
+type Options = { method?: string; body?: unknown; school?: string | null; auth?: boolean; signal?: AbortSignal };
 
 export async function api<T = unknown>(path: string, opts: Options = {}): Promise<T> {
   const { method = "GET", body, auth = true } = opts;
@@ -118,17 +131,24 @@ export async function api<T = unknown>(path: string, opts: Options = {}): Promis
       headers["Content-Type"] = "application/json";
       payload = JSON.stringify(body);
     }
-    return fetch(`/api/${path.replace(/^\//, "")}`, { method, headers, body: payload });
+    return fetch(`/api/${path.replace(/^\//, "")}`, { method, headers, body: payload, signal: opts.signal });
   };
 
-  let res = await send();
-  if (res.status === 401 && auth && (await refreshTokens())) res = await send();
+  let res: Response;
+  try {
+    res = await send();
+    if (res.status === 401 && auth && (await refreshTokens())) res = await send();
+  } catch (e) {
+    if (e instanceof DOMException && e.name === "AbortError") throw e;
+    throw new ApiError(0, null);
+  }
   if (res.status === 401 && auth) {
     storage.setSession(null);
     if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
       // Outside React, so no router here; a full reload also clears in-memory state.
+      const next = encodeURIComponent(window.location.pathname + window.location.search);
       // eslint-disable-next-line @next/next/no-location-assign-relative-destination
-      window.location.href = "/login";
+      window.location.href = `/login?expired=1&next=${next}`;
     }
   }
   const text = await res.text();

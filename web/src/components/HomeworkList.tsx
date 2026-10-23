@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import { Badge, Empty, Loading, cx } from "@/components/ui";
-import { api, ApiError, Page, storage } from "@/lib/api";
+import { BookOpen, Check, Paperclip } from "lucide-react";
+import { useToast } from "@/components/toast";
+import { Badge, Empty, ErrorState, Loading, cx } from "@/components/ui";
+import { api, Page, storage } from "@/lib/api";
 import { formatDate, todayIso } from "@/lib/format";
 import { Homework } from "@/lib/types";
 import { rows, useApi } from "@/lib/useApi";
@@ -32,33 +33,36 @@ export function HomeworkList({
   actions?: (h: Homework, reload: () => void) => React.ReactNode;
 }) {
   const list = useApi<Page<Homework>>(`homework/?${query}`);
-  const [error, setError] = useState<string | null>(null);
+  const toast = useToast();
   const today = todayIso();
 
   const toggle = async (h: Homework) => {
+    // Show the change at once; put it back if the server says no.
+    const flip = (done: boolean) => list.setData(list.data ? { ...list.data, results: rows(list.data).map((x) => (x.id === h.id ? { ...x, done } : x)) } : null);
+    flip(!h.done);
     try {
       await api(`homework/${h.id}/done/`, { method: h.done ? "DELETE" : "POST" });
-      list.reload();
+      if (!h.done) toast.success(`Marked "${h.title}" as done.`);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Could not update.");
+      flip(Boolean(h.done));
+      toast.error(e, "Could not update. Try again.");
     }
   };
 
-  if (list.error) return <p className="text-sm text-red-600">{list.error}</p>;
+  if (list.error && !list.data) return <ErrorState message={list.error} onRetry={list.reload} />;
   if (!list.data) return <Loading />;
   const items = rows(list.data);
-  if (items.length === 0) return <Empty>No homework here.</Empty>;
+  if (items.length === 0) return <Empty icon={<BookOpen aria-hidden />} title="No homework here">New homework shows up here as soon as a teacher posts it.</Empty>;
   return (
     <>
-      {error && <p className="mb-2 text-sm text-red-600">{error}</p>}
-      <ul className="space-y-3">
+      <ul className="stagger space-y-3">
         {items.map((h) => {
           const overdue = h.due_date < today && !h.done;
           return (
-            <li key={h.id} className={cx("rounded-lg border border-line p-3 text-sm", h.done && "opacity-70")}>
+            <li key={h.id} className={cx("rounded-xl border border-line bg-surface p-4 text-sm transition duration-300", h.done && "bg-muted/40", overdue && "border-l-4 border-l-red-500")}>
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <div className="font-medium">{h.title}</div>
+                  <div className={cx("font-semibold", h.done && "text-soft line-through decoration-soft/60")}>{h.title}</div>
                   <div className="text-xs text-soft">{h.subject_name} · {h.section_name}{h.teacher_name ? ` · ${h.teacher_name}` : ""}</div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -71,17 +75,29 @@ export function HomeworkList({
                 <ul className="mt-2 flex flex-wrap gap-2">
                   {h.attachments.map((a) => (
                     <li key={a.id}>
-                      <button className="rounded border border-line px-2 py-1 text-xs text-brand" onClick={() => download(a.url, a.name).catch((e) => setError(e.message))}>
-                        📎 {a.name}
+                      <button className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-line px-3 text-xs font-medium text-brand transition hover:border-brand/40 hover:bg-brand-soft" onClick={() => download(a.url, a.name).catch((e) => toast.error(e.message))}>
+                        <Paperclip className="size-3.5" aria-hidden /> {a.name}
                       </button>
                     </li>
                   ))}
                 </ul>
               )}
-              <div className="mt-2 flex flex-wrap items-center gap-3 text-xs">
+              <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
                 {h.done_count != null && <span className="text-soft">{h.done_count} marked done</span>}
                 {canMarkDone && (
-                  <button className="font-medium text-brand" onClick={() => toggle(h)}>{h.done ? "Mark as not done" : "Mark as done"}</button>
+                  <button
+                    onClick={() => toggle(h)}
+                    aria-pressed={Boolean(h.done)}
+                    className={cx(
+                      "inline-flex min-h-9 items-center gap-2 rounded-xl px-3 font-medium transition active:scale-95",
+                      h.done ? "bg-green-100 text-green-800 hover:bg-green-200 dark:bg-green-950 dark:text-green-300" : "border border-line text-ink hover:border-brand hover:text-brand",
+                    )}
+                  >
+                    <span className={cx("flex size-4 items-center justify-center rounded border transition", h.done ? "border-green-600 bg-green-600 text-white" : "border-soft")}>
+                      {h.done && <Check className="size-3 animate-pop" aria-hidden />}
+                    </span>
+                    {h.done ? "Done" : "Mark as done"}
+                  </button>
                 )}
                 {actions?.(h, list.reload)}
               </div>

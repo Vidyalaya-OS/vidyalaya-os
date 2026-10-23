@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { api, Membership, Role, Session, storage, User } from "./api";
+import { clearApiCache } from "./useApi";
 
 type Ctx = {
   ready: boolean;
@@ -32,6 +33,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signIn = useCallback((s: Session) => {
+    clearApiCache();
     storage.setSession(s);
     setSession(s);
     const only = s.memberships.length === 1 && !s.user.is_platform_owner ? s.memberships[0].school.subdomain : null;
@@ -42,6 +44,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const signOut = useCallback(async () => {
     const s = storage.session();
     if (s) await api("auth/logout", { method: "POST", body: { refresh: s.refresh }, school: null }).catch(() => {});
+    clearApiCache();
     storage.setSession(null);
     storage.setSchool(null);
     setSession(null);
@@ -49,6 +52,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const chooseSchool = useCallback((sub: string | null) => {
+    clearApiCache();
     storage.setSchool(sub);
     setSubdomain(sub);
   }, []);

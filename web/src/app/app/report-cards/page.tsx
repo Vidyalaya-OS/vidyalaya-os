@@ -2,8 +2,11 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { Award } from "lucide-react";
+import { useDialog } from "@/components/dialog";
 import { useStaffSections } from "@/components/sections";
-import { Alert, Badge, Button, Card, Empty, Loading, PageHeader, Select } from "@/components/ui";
+import { useToast } from "@/components/toast";
+import { Avatar, Badge, Button, Card, Empty, ErrorState, Loading, PageHeader, Select, StickyBar } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { num, pct } from "@/lib/format";
 import { useSession } from "@/lib/session";
@@ -24,7 +27,8 @@ export default function ReportCardsPage() {
   const s = section || sections[0]?.id || "";
   const cards = useApi<SectionCards>(t && s ? `report-cards/section?exam_term=${t}&section=${s}` : null);
   const [remarks, setRemarks] = useState<Record<string, string>>({});
-  const [notice, setNotice] = useState<{ tone: "success" | "error"; text: string } | null>(null);
+  const toast = useToast();
+  const dialog = useDialog();
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -34,13 +38,12 @@ export default function ReportCardsPage() {
 
   const run = async (fn: () => Promise<unknown>, ok: string) => {
     setBusy(true);
-    setNotice(null);
     try {
       await fn();
-      setNotice({ tone: "success", text: ok });
+      toast.success(ok);
       cards.reload();
     } catch (e) {
-      setNotice({ tone: "error", text: e instanceof ApiError ? e.message : "That did not work." });
+      toast.error(e);
     } finally {
       setBusy(false);
     }
@@ -54,13 +57,14 @@ export default function ReportCardsPage() {
     try {
       setBusy(true);
       await api("report-cards/publish", { method: "POST", body: { exam_term: t, section: s } });
-      setNotice({ tone: "success", text: "Published. Students and parents can see and print their report cards." });
+      toast.success("Published. Students and parents can see and print their report cards.");
       cards.reload();
     } catch (e) {
       const missing = e instanceof ApiError ? (e.data as { missing?: string[] })?.missing : undefined;
-      if (missing && confirm(`${missing.length} marks are missing. Publish anyway?`)) {
-        await run(() => api("report-cards/publish", { method: "POST", body: { exam_term: t, section: s, allow_missing: true } }), "Published.");
-      } else if (!missing) setNotice({ tone: "error", text: e instanceof ApiError ? e.message : "Could not publish." });
+      if (missing) {
+        const ok = await dialog.confirm({ title: "Some marks are missing", body: `${missing.length} mark${missing.length === 1 ? " is" : "s are"} not entered yet. Publish the report cards anyway?`, confirmLabel: "Publish anyway" });
+        if (ok) await run(() => api("report-cards/publish", { method: "POST", body: { exam_term: t, section: s, allow_missing: true } }), "Report cards published.");
+      } else toast.error(e, "Could not publish.");
     } finally {
       setBusy(false);
     }
@@ -72,7 +76,7 @@ export default function ReportCardsPage() {
   return (
     <>
       <PageHeader title="Report cards" subtitle="A term's marks, attendance and remarks. Students and parents see them once published." />
-      <Card>
+      <Card title="Section report cards" icon={<Award aria-hidden />}>
         <div className="mb-4 grid gap-3 sm:grid-cols-3">
           <Select label="Term" value={t} onChange={(e) => setTerm(e.target.value)}>
             {(terms.data ?? []).map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
@@ -82,23 +86,25 @@ export default function ReportCardsPage() {
           </Select>
           <div className="flex items-end">{data && <Badge tone={data.published ? "good" : "warn"}>{data.published ? "Published" : "Not published"}</Badge>}</div>
         </div>
-        {notice && <div className="mb-3"><Alert tone={notice.tone}>{notice.text}</Alert></div>}
-        {terms.data?.length === 0 ? <Empty>Add an exam term under Tests &amp; marks first.</Empty> : !data ? (cards.error ? <Alert>{cards.error}</Alert> : <Loading />) : (
+        {terms.data?.length === 0 ? <Empty>Add an exam term under Tests &amp; marks first.</Empty> : !data ? (cards.error ? <ErrorState message={cards.error} onRetry={cards.reload} /> : <Loading rows={5} />) : (
           <>
             <p className="mb-3 text-sm text-soft">
               Tests: {data.exams.length === 0 ? "none yet" : data.exams.map((e) => `${e.subject_name} (${e.marks_entered}/${e.students}${e.status === "published" ? ", published" : ""})`).join(", ")}
             </p>
             {data.rows.length === 0 ? <Empty>No students in this section.</Empty> : (
-              <ul className="divide-y divide-line rounded-lg border border-line">
+              <ul className="stagger divide-y divide-line overflow-hidden rounded-xl border border-line">
                 {data.rows.map((r) => (
-                  <li key={r.student} className="grid gap-2 px-3 py-3 sm:grid-cols-[1fr_2fr]">
-                    <div className="text-sm">
-                      <Link href={`/app/report-cards/${r.student}/${t}`} className="font-medium text-brand">{r.roll_no ? `${r.roll_no}. ` : ""}{r.name}</Link>
-                      <div className="text-soft">{num(r.total)} / {num(r.total_max)} · {pct(r.percentage)} {r.grade ? `· ${r.grade}` : ""}</div>
-                      <div className="text-soft">Attendance {pct(r.attendance)}</div>
+                  <li key={r.student} className="grid gap-3 px-3 py-3 sm:grid-cols-[1fr_2fr]">
+                    <div className="flex gap-3 text-sm">
+                      <Avatar name={r.name} size="sm" />
+                      <div className="min-w-0">
+                        <Link href={`/app/report-cards/${r.student}/${t}`} className="font-semibold text-brand hover:underline">{r.roll_no ? `${r.roll_no}. ` : ""}{r.name}</Link>
+                        <div className="text-soft">{num(r.total)} / {num(r.total_max)} · {pct(r.percentage)} {r.grade ? `· ${r.grade}` : ""}</div>
+                        <div className="text-soft">Attendance {pct(r.attendance)}</div>
+                      </div>
                     </div>
                     <textarea
-                      className="min-h-16 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm disabled:opacity-60"
+                      className="min-h-20 w-full rounded-xl border border-line bg-surface px-3.5 py-2.5 text-sm outline-none transition focus:border-brand focus:ring-4 focus:ring-[var(--ring)] disabled:bg-muted disabled:opacity-70"
                       placeholder="Teacher's remarks"
                       value={remarks[r.student] ?? ""}
                       disabled={locked}
@@ -109,15 +115,19 @@ export default function ReportCardsPage() {
                 ))}
               </ul>
             )}
-            <div className="mt-4 flex flex-wrap gap-2">
+            <StickyBar>
               {!locked && <Button onClick={saveRemarks} busy={busy} variant="secondary">Save remarks</Button>}
               {isAdmin && !data.published && <Button onClick={publish} busy={busy}>Publish report cards</Button>}
               {isAdmin && locked && (
-                <Button variant="danger" busy={busy} onClick={() => confirm("Unpublish? Students and parents stop seeing these report cards.") && run(() => api("report-cards/publish", { method: "DELETE", body: { exam_term: t, section: s } }), "Unpublished. Remarks can be edited again.")}>
+                <Button variant="danger" busy={busy} onClick={async () => {
+                  if (await dialog.confirm({ title: "Unpublish these report cards?", body: "Students and parents stop seeing them until you publish again.", confirmLabel: "Unpublish", danger: true })) {
+                    run(() => api("report-cards/publish", { method: "DELETE", body: { exam_term: t, section: s } }), "Unpublished. Remarks can be edited again.");
+                  }
+                }}>
                   Unpublish
                 </Button>
               )}
-            </div>
+            </StickyBar>
           </>
         )}
       </Card>

@@ -1,87 +1,64 @@
 "use client";
 
-import Link from "next/link";
+import { useEffect, useState } from "react";
 import { ParentDashboard, StudentDashboard } from "@/components/Dashboards";
-import { Badge, ButtonLink, Card, Empty, Loading, PageHeader } from "@/components/ui";
-import { Page } from "@/lib/api";
-import { useSession } from "@/lib/session";
-import { SetupStatus, Teacher } from "@/lib/types";
-import { rows, useApi } from "@/lib/useApi";
+import { AdminHome, TeacherHome } from "@/components/StaffHome";
+import { PageHeader, Segmented } from "@/components/ui";
+import { Role } from "@/lib/api";
+import { ROLE_LABELS, useSession } from "@/lib/session";
 
+const VIEW_KEY = "sms.homeView";
+
+function greeting() {
+  const h = new Date().getHours();
+  return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
+}
+
+/** Each role gets its own home screen. Someone with several roles (a teacher
+ * who is also a parent) switches between them; the choice is remembered. */
 export default function SchoolHome() {
-  const { hasRole, user } = useSession();
+  const { roles, user, school } = useSession();
+  const [view, setView] = useState<Role | null>(null);
+  const [hello, setHello] = useState("Hello");
+
+  useEffect(() => {
+    // Time of day and the saved view are only known in the browser.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setHello(greeting());
+    try {
+      const saved = window.localStorage.getItem(VIEW_KEY) as Role | null;
+      if (saved && roles.includes(saved)) setView(saved);
+    } catch {
+      // No storage: show the first role.
+    }
+  }, [roles]);
+
+  const current = view && roles.includes(view) ? view : roles[0];
+  const choose = (r: Role) => {
+    setView(r);
+    try {
+      window.localStorage.setItem(VIEW_KEY, r);
+    } catch {
+      // Remembered for this visit only.
+    }
+  };
+  const today = new Date().toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" });
+
   return (
     <>
-      <PageHeader title={`Hello, ${user?.name.split(" ")[0]}`} subtitle="Here is what needs you today." />
-      <div className="space-y-5">
-        {hasRole("admin") && <AdminHome />}
-        {hasRole("teacher") && <TeacherHome />}
-        {hasRole("student") && <StudentDashboard />}
-        {hasRole("parent") && <ParentDashboard />}
+      <PageHeader
+        title={`${hello}, ${user?.name.split(" ")[0]}`}
+        subtitle={<><span suppressHydrationWarning>{today}</span> · {school?.school.name}</>}
+        actions={roles.length > 1 ? (
+          <Segmented label="Show home screen for" value={current} onChange={choose} options={roles.map((r) => ({ key: r, label: ROLE_LABELS[r] }))} />
+        ) : undefined}
+      />
+      <div key={current} className="animate-enter">
+        {current === "admin" && <AdminHome />}
+        {current === "teacher" && <TeacherHome />}
+        {current === "student" && <StudentDashboard />}
+        {current === "parent" && <ParentDashboard />}
       </div>
     </>
-  );
-}
-
-const STEP_LINKS: Record<string, string> = {
-  academic_year: "/app/setup",
-  classes: "/app/setup",
-  sections: "/app/setup",
-  subjects: "/app/setup",
-  teachers: "/app/teachers",
-  subject_teachers: "/app/setup",
-  students: "/app/students",
-  parents: "/app/parents",
-};
-
-function AdminHome() {
-  const { data } = useApi<SetupStatus>("setup-status");
-  if (!data) return <Loading />;
-  const done = data.steps.filter((s) => s.done).length;
-  return (
-    <Card title="School setup" actions={<span className="text-sm text-soft">{done} of {data.steps.length} done</span>}>
-      <div className="mb-4 h-2 overflow-hidden rounded-full bg-muted">
-        <div className="h-full bg-brand" style={{ width: `${(done / data.steps.length) * 100}%` }} />
-      </div>
-      <ol className="space-y-2">
-        {data.steps.map((s, i) => (
-          <li key={s.key}>
-            <Link href={STEP_LINKS[s.key]} className="flex items-center justify-between gap-3 rounded-lg border border-line px-3 py-2.5 text-sm hover:bg-muted">
-              <span className="flex items-center gap-3">
-                <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs ${s.done ? "bg-brand text-white" : "bg-muted text-soft"}`}>
-                  {s.done ? "✓" : i + 1}
-                </span>
-                {s.label}
-              </span>
-              <span className="text-soft">{s.count}</span>
-            </Link>
-          </li>
-        ))}
-      </ol>
-      {data.complete && <p className="mt-3 text-sm text-soft">Setup is complete. Next: build the <Link className="text-brand" href="/app/timetable">timetable</Link> and set up <Link className="text-brand" href="/app/fees">fees</Link>.</p>}
-    </Card>
-  );
-}
-
-function TeacherHome() {
-  const { data } = useApi<Page<Teacher>>("teachers/");
-  const me = rows(data)[0];
-  if (!data) return <Loading />;
-  if (!me) return null;
-  return (
-    <Card title="Your classes" actions={<div className="flex gap-2"><ButtonLink href="/app/attendance">Mark attendance</ButtonLink><ButtonLink href="/app/quizzes" variant="secondary">Set a quiz</ButtonLink><ButtonLink href="/app/students" variant="secondary">Your students</ButtonLink></div>}>
-      {me.teaches.length === 0 && me.class_teacher_of.length === 0 ? (
-        <Empty>You have no classes assigned yet. Your school admin assigns them.</Empty>
-      ) : (
-        <ul className="space-y-2 text-sm">
-          {me.class_teacher_of.map((c) => (
-            <li key={c.section} className="flex justify-between rounded-lg border border-line px-3 py-2"><span>{c.section_name}</span><Badge tone="good">Class teacher</Badge></li>
-          ))}
-          {me.teaches.map((t) => (
-            <li key={`${t.section}-${t.subject}`} className="flex justify-between rounded-lg border border-line px-3 py-2"><span>{t.section_name}</span><span className="text-soft">{t.subject_name}</span></li>
-          ))}
-        </ul>
-      )}
-    </Card>
   );
 }

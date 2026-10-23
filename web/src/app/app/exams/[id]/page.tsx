@@ -2,7 +2,9 @@
 
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Alert, Badge, Button, Card, Loading, PageHeader, cx } from "@/components/ui";
+import { useDialog } from "@/components/dialog";
+import { useToast } from "@/components/toast";
+import { Alert, Badge, Button, Card, ErrorState, Loading, PageHeader, Progress, StickyBar, cx } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { formatDate, num } from "@/lib/format";
 import { useSession } from "@/lib/session";
@@ -18,7 +20,9 @@ export default function MarksPage() {
   const sheet = useApi<Sheet>(`exams/${id}/marks/`);
   const [draft, setDraft] = useState<Draft>({});
   const [busy, setBusy] = useState(false);
-  const [notice, setNotice] = useState<{ tone: "success" | "error"; text: string } | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const toast = useToast();
+  const dialog = useDialog();
   const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -26,8 +30,8 @@ export default function MarksPage() {
     setDraft(Object.fromEntries((sheet.data?.rows ?? []).map((r) => [r.enrollment, { marks: r.marks_obtained == null ? "" : num(r.marks_obtained), absent: r.is_absent, remark: r.remark }])));
   }, [sheet.data]);
 
-  if (sheet.error) return <Alert>{sheet.error}</Alert>;
-  if (!sheet.data) return <Loading />;
+  if (sheet.error && !sheet.data) return <ErrorState message={sheet.error} onRetry={sheet.reload} />;
+  if (!sheet.data) return <Loading variant="table" rows={8} />;
   const { exam, locked } = sheet.data;
   const max = Number(exam.max_marks);
 
@@ -40,13 +44,14 @@ export default function MarksPage() {
         enrollment, marks_obtained: d.absent || d.marks === "" ? null : d.marks, is_absent: d.absent, remark: d.remark,
       }));
       sheet.setData(await api<Sheet>(`exams/${id}/marks/`, { method: "PUT", body: { rows } }));
-      setNotice({ tone: "success", text: "Marks saved." });
+      toast.success("Marks saved.");
     } catch (e) {
       if (e instanceof ApiError) {
         const rowsErr = (e.data as { rows?: Record<string, string> })?.rows;
         if (rowsErr && typeof rowsErr === "object" && !Array.isArray(rowsErr)) setRowErrors(rowsErr);
-        setNotice({ tone: "error", text: rowsErr ? "Some marks need fixing (shown in red)." : e.message });
-      } else setNotice({ tone: "error", text: "Could not save." });
+        if (rowsErr) setNotice("Some marks need fixing. They are shown in red.");
+        else toast.error(e);
+      } else toast.error("Could not save the marks.");
     } finally {
       setBusy(false);
     }
@@ -56,11 +61,13 @@ export default function MarksPage() {
     try {
       await api(`exams/${id}/publish/`, { method: "POST", body: { allow_missing: allow } });
       sheet.reload();
-      setNotice({ tone: "success", text: "Published. Students and parents can see these results now." });
+      toast.success("Published. Students and parents can see these results now.");
     } catch (e) {
       const missing = e instanceof ApiError ? (e.data as { missing?: string[] })?.missing : undefined;
-      if (missing && confirm(`${missing.length} marks are missing. Publish anyway?`)) return publish(true);
-      if (!missing) setNotice({ tone: "error", text: e instanceof ApiError ? e.message : "Could not publish." });
+      if (missing) {
+        const ok = await dialog.confirm({ title: "Some marks are missing", body: `${missing.length} mark${missing.length === 1 ? " is" : "s are"} not entered yet. Publish anyway?`, confirmLabel: "Publish anyway" });
+        if (ok) return publish(true);
+      } else toast.error(e, "Could not publish.");
     }
   };
 
@@ -69,21 +76,24 @@ export default function MarksPage() {
   return (
     <>
       <PageHeader
+        back={{ href: "/app/exams", label: "Tests & marks" }}
         title={`${exam.subject_name} · ${exam.section_name}`}
         subtitle={`${exam.exam_term_name} · out of ${num(exam.max_marks)}${exam.pass_marks ? `, pass ${num(exam.pass_marks)}` : ""}${exam.date ? ` · ${formatDate(exam.date)}` : ""}`}
         actions={<Badge tone={locked ? "good" : "warn"}>{locked ? "Published, marks locked" : "Entering marks"}</Badge>}
       />
-      {notice && <div className="mb-4"><Alert tone={notice.tone}>{notice.text}</Alert></div>}
-      <Card actions={<span className="text-sm text-soft">Class average {sheet.data.class_average ?? "-"} · Highest {num(sheet.data.highest)}</span>} title="Marks">
-        <ul className="divide-y divide-line rounded-lg border border-line">
+      {notice && <div className="mb-4"><Alert>{notice}</Alert></div>}
+      <Card actions={<span className="text-sm text-soft">Class average {sheet.data.class_average ?? "-"} · Highest {num(sheet.data.highest)}</span>} title="Marks"
+        description={`${Object.values(draft).filter((d) => d.absent || d.marks !== "").length} of ${sheet.data.rows.length} entered`}>
+        <Progress value={sheet.data.rows.length ? (Object.values(draft).filter((d) => d.absent || d.marks !== "").length / sheet.data.rows.length) * 100 : 0} className="mb-4" label="Marks entered" />
+        <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line">
           {sheet.data.rows.map((r) => {
             const d = draft[r.enrollment] ?? { marks: "", absent: false, remark: "" };
             const over = d.marks !== "" && Number(d.marks) > max;
             return (
-              <li key={r.enrollment} className="flex flex-wrap items-center gap-3 px-3 py-2">
+              <li key={r.enrollment} className={cx("flex flex-wrap items-center gap-3 px-3 py-2.5 transition-colors", (rowErrors[r.enrollment] || over) && "bg-red-50/60 dark:bg-red-950/30")}>
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-medium">{r.roll_no ? `${r.roll_no}. ` : ""}{r.name}</div>
-                  {(rowErrors[r.enrollment] || over) && <div className="text-xs text-red-600">{rowErrors[r.enrollment] ?? `Above ${num(exam.max_marks)}`}</div>}
+                  {(rowErrors[r.enrollment] || over) && <div className="text-xs font-medium text-red-600 dark:text-red-400" role="alert">{rowErrors[r.enrollment] ?? `Above ${num(exam.max_marks)}`}</div>}
                 </div>
                 <input
                   type="number"
@@ -95,20 +105,20 @@ export default function MarksPage() {
                   value={d.absent ? "" : d.marks}
                   onChange={(e) => set(r.enrollment, { marks: e.target.value })}
                   aria-label={`Marks for ${r.name}`}
-                  className={cx("h-10 w-24 rounded-lg border bg-surface px-2 text-right text-base sm:text-sm", over || rowErrors[r.enrollment] ? "border-red-500" : "border-line")}
+                  className={cx("h-11 w-24 rounded-xl border bg-surface px-3 text-right text-base tabular-nums outline-none transition focus:border-brand focus:ring-4 focus:ring-[var(--ring)] disabled:bg-muted sm:text-sm", over || rowErrors[r.enrollment] ? "border-red-500" : "border-line")}
                 />
-                <label className="flex items-center gap-1 text-sm">
-                  <input type="checkbox" disabled={locked} checked={d.absent} onChange={(e) => set(r.enrollment, { absent: e.target.checked })} /> Absent
+                <label className="flex min-h-11 items-center gap-2 text-sm">
+                  <input type="checkbox" className="size-4 accent-[var(--brand)]" disabled={locked} checked={d.absent} onChange={(e) => set(r.enrollment, { absent: e.target.checked })} /> Absent
                 </label>
               </li>
             );
           })}
         </ul>
         {!locked && (
-          <div className="sticky bottom-0 mt-4 flex flex-wrap gap-2 bg-surface py-2">
+          <StickyBar>
             <Button onClick={save} busy={busy}>Save marks</Button>
             {hasRole("admin") && <Button variant="secondary" onClick={() => publish()}>Publish results</Button>}
-          </div>
+          </StickyBar>
         )}
       </Card>
     </>

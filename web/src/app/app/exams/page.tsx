@@ -1,9 +1,12 @@
 "use client";
 
+import { FileSpreadsheet } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
+import { useDialog } from "@/components/dialog";
 import { useStaffSections } from "@/components/sections";
-import { Alert, Badge, Button, ButtonLink, Card, DataTable, Empty, Field, Loading, PageHeader, Select } from "@/components/ui";
+import { useToast } from "@/components/toast";
+import { Alert, Badge, Button, ButtonLink, Card, DataTable, Empty, ErrorState, Field, Loading, PageHeader, Select } from "@/components/ui";
 import { api, ApiError, Page } from "@/lib/api";
 import { formatDate, num } from "@/lib/format";
 import { useSession } from "@/lib/session";
@@ -36,16 +39,17 @@ export default function ExamsPage() {
         )}
         <Card
           title="Tests"
+          icon={<FileSpreadsheet aria-hidden />}
           actions={terms.data && terms.data.length > 0 ? (
             <Select label="Term" value={chosen} onChange={(e) => setTerm(e.target.value)}>
               {terms.data.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
             </Select>
           ) : undefined}
         >
-          {!terms.data ? <Loading /> : terms.data.length === 0 ? <Empty>{isAdmin ? "Add an exam term first, such as Unit test 1." : "No exam terms yet."}</Empty> : (
+          {terms.error && !terms.data ? <ErrorState message={terms.error} onRetry={terms.reload} /> : !terms.data ? <Loading variant="table" /> : terms.data.length === 0 ? <Empty>{isAdmin ? "Add an exam term first, such as Unit test 1." : "No exam terms yet."}</Empty> : (
             <>
               {isAdmin && chosen && <CreateTests term={chosen} onDone={exams.reload} />}
-              {!exams.data ? <Loading /> : exams.data.length === 0 ? <Empty>No tests in this term yet.</Empty> : (
+              {exams.error && !exams.data ? <ErrorState message={exams.error} onRetry={exams.reload} /> : !exams.data ? <Loading variant="table" /> : exams.data.length === 0 ? <Empty>No tests in this term yet.</Empty> : (
                 <ExamTable exams={exams.data} isAdmin={isAdmin} reload={exams.reload} />
               )}
             </>
@@ -57,24 +61,30 @@ export default function ExamsPage() {
 }
 
 function ExamTable({ exams, isAdmin, reload }: { exams: Exam[]; isAdmin: boolean; reload: () => void }) {
-  const [error, setError] = useState<string | null>(null);
+  const toast = useToast();
+  const dialog = useDialog();
   const act = async (e: Exam, what: "publish" | "unpublish") => {
-    setError(null);
+    if (what === "unpublish" && !(await dialog.confirm({ title: "Unpublish these results?", body: "Students and parents stop seeing them, and the marks unlock for editing.", confirmLabel: "Unpublish", danger: true }))) return;
     try {
       await api(`exams/${e.id}/${what}/`, { method: "POST", body: {} });
+      toast.success(what === "publish" ? `${e.subject_name} results published for ${e.section_name}.` : "Results unpublished. Marks can be edited again.");
     } catch (err) {
       if (err instanceof ApiError && what === "publish" && (err.data as { missing?: string[] })?.missing) {
         const missing = (err.data as { missing: string[] }).missing;
-        if (confirm(`${missing.length} marks are not entered yet (${missing.slice(0, 3).join(", ")}${missing.length > 3 ? "…" : ""}). Publish anyway?`)) {
-          await api(`exams/${e.id}/publish/`, { method: "POST", body: { allow_missing: true } }).catch((x) => setError(String(x)));
+        const ok = await dialog.confirm({
+          title: "Some marks are missing",
+          body: `${missing.length} mark${missing.length === 1 ? " is" : "s are"} not entered yet (${missing.slice(0, 3).join(", ")}${missing.length > 3 ? "…" : ""}). Publish anyway?`,
+          confirmLabel: "Publish anyway",
+        });
+        if (ok) {
+          await api(`exams/${e.id}/publish/`, { method: "POST", body: { allow_missing: true } }).then(() => toast.success("Results published."), (x) => toast.error(x));
         }
-      } else setError(err instanceof ApiError ? err.message : "That did not work.");
+      } else toast.error(err);
     }
     reload();
   };
   return (
     <>
-      {error && <div className="mb-3"><Alert>{error}</Alert></div>}
       <DataTable
         rows={exams}
         rowKey={(e) => e.id}
@@ -88,10 +98,10 @@ function ExamTable({ exams, isAdmin, reload }: { exams: Exam[]; isAdmin: boolean
           {
             header: "Actions",
             cell: (e) => (
-              <div className="flex justify-end gap-3 text-xs sm:justify-start">
+              <div className="flex justify-end gap-4 text-sm font-medium sm:justify-start">
                 <Link className="text-brand" href={`/app/exams/${e.id}`}>{e.status === "published" ? "View" : "Enter marks"}</Link>
                 {isAdmin && e.status === "draft" && <button className="text-brand" onClick={() => act(e, "publish")}>Publish</button>}
-                {isAdmin && e.status === "published" && <button className="text-red-600" onClick={() => confirm("Unpublish? Students and parents stop seeing these results and marks unlock.") && act(e, "unpublish")}>Unpublish</button>}
+                {isAdmin && e.status === "published" && <button className="text-red-600" onClick={() => act(e, "unpublish")}>Unpublish</button>}
               </div>
             ),
           },
@@ -107,13 +117,12 @@ function CreateTests({ term, onDone }: { term: string; onDone: () => void }) {
   const subjects = useApi<Page<Subject>>("subjects/");
   const [open, setOpen] = useState<"" | "class" | "one">("");
   const form = useForm({ school_class: "", section: "", subject: "", max_marks: "100", pass_marks: "", date: "" });
-  const [notice, setNotice] = useState<string | null>(null);
+  const toast = useToast();
   if (!open) {
     return (
       <div className="mb-4 flex flex-wrap gap-2">
         <Button variant="secondary" onClick={() => setOpen("class")}>Add tests for a whole class</Button>
         <Button variant="ghost" onClick={() => setOpen("one")}>Add one test</Button>
-        {notice && <span className="self-center text-sm text-soft">{notice}</span>}
       </div>
     );
   }
@@ -121,14 +130,14 @@ function CreateTests({ term, onDone }: { term: string; onDone: () => void }) {
   const submit = form.submit(async (v) => {
     if (open === "class") {
       const res = await api<{ created: number }>(`exam-terms/${term}/create-exams/`, { method: "POST", body: { school_class: v.school_class, ...common } });
-      setNotice(`${res.created} tests added, one per subject taught in each section.`);
+      toast.success(`${res.created} tests added, one per subject taught in each section.`);
     } else {
       await api("exams/", { method: "POST", body: { exam_term: term, section: v.section, subject: v.subject, ...common } });
-      setNotice("Test added.");
+      toast.success("Test added.");
     }
   }, () => { setOpen(""); onDone(); });
   return (
-    <form onSubmit={submit} className="mb-5 grid gap-3 rounded-lg border border-line p-4 sm:grid-cols-3">
+    <form onSubmit={submit} className="mb-5 grid animate-enter gap-3 rounded-2xl border border-line bg-muted/40 p-4 sm:grid-cols-3">
       {form.error && <div className="sm:col-span-3"><Alert>{form.error}</Alert></div>}
       {open === "class" ? (
         <Select label="Class" required {...form.bind("school_class")}>
@@ -167,7 +176,7 @@ function TermsCard({ terms, reload }: { terms: ExamTerm[]; reload: () => void })
       {terms.length > 0 && (
         <ul className="mb-4 space-y-2 text-sm">
           {terms.map((t) => (
-            <li key={t.id} className="flex justify-between rounded-lg border border-line px-3 py-2">
+            <li key={t.id} className="flex justify-between gap-3 rounded-xl border border-line px-3 py-2.5">
               <span className="font-medium">{t.name}</span>
               <span className="text-soft">{t.start_date ? `${formatDate(t.start_date)} to ${formatDate(t.end_date)}` : "No dates"}</span>
             </li>
@@ -195,14 +204,11 @@ function GradeScaleCard() {
   const scales = useApi<GradeScale[]>("grade-scales/");
   const current = scales.data?.find((s) => s.is_default) ?? scales.data?.[0];
   const [text, setText] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
+  const toast = useToast();
   const bands = current?.bands ?? DEFAULT_BANDS;
   const shown = text ?? bands.map((b) => `${b.min} ${b.grade}`).join("\n");
 
   const save = async () => {
-    setError(null);
-    setSaved(false);
     const parsed = shown.split("\n").map((l) => l.trim()).filter(Boolean).map((l) => {
       const [min, ...grade] = l.split(/\s+/);
       return { min: Number(min), grade: grade.join(" ") };
@@ -210,21 +216,19 @@ function GradeScaleCard() {
     try {
       if (current) await api(`grade-scales/${current.id}/`, { method: "PATCH", body: { bands: parsed } });
       else await api("grade-scales/", { method: "POST", body: { name: "School scale", bands: parsed, is_default: true } });
-      setSaved(true);
+      toast.success("Grading scale saved.");
       setText(null);
       scales.reload();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Could not save.");
+      toast.error(e, "Could not save the grading scale.");
     }
   };
 
   return (
     <Card title="Grading scale">
       <p className="mb-3 text-sm text-soft">One band per line: the lowest percentage, then the grade. {current ? "" : "These are the defaults until you save your own."}</p>
-      {error && <div className="mb-3"><Alert>{error}</Alert></div>}
-      {saved && <div className="mb-3"><Alert tone="success">Saved.</Alert></div>}
       <textarea
-        className="block min-h-48 w-full rounded-lg border border-line bg-surface px-3 py-2 font-mono text-sm"
+        className="block min-h-48 w-full rounded-xl border border-line bg-surface px-3.5 py-2.5 font-mono text-sm outline-none focus:border-brand focus:ring-4 focus:ring-[var(--ring)]"
         value={shown}
         onChange={(e) => setText(e.target.value)}
         aria-label="Grade bands"

@@ -1,7 +1,8 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { Alert, Button, Loading } from "@/components/ui";
+import { Printer } from "lucide-react";
+import { Alert, Button, ErrorState, Loading } from "@/components/ui";
 import { formatDate, num, pct } from "@/lib/format";
 import { ReportCard } from "@/lib/types";
 import { useApi } from "@/lib/useApi";
@@ -10,16 +11,17 @@ import { useApi } from "@/lib/useApi";
 export default function ReportCardPage() {
   const { student, term } = useParams<{ student: string; term: string }>();
   const card = useApi<ReportCard>(`report-cards/students/${student}/${term}`);
-  if (card.error) return <Alert>{card.error}</Alert>;
-  if (!card.data) return <Loading />;
+  if (card.error && !card.data) return <ErrorState message={card.error} onRetry={card.reload} />;
+  if (!card.data) return <Loading variant="table" rows={6} />;
   const c = card.data;
   return (
     <>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2 print:hidden">
+        <button onClick={() => window.history.back()} className="text-sm font-medium text-soft hover:text-brand">← Back</button>
         {!c.published_at && <Alert tone="info">Draft: students and parents can&apos;t see this until it is published.</Alert>}
-        <Button onClick={() => window.print()}>Print or save as PDF</Button>
+        <Button onClick={() => window.print()}><Printer aria-hidden /> Print or save as PDF</Button>
       </div>
-      <article className="mx-auto max-w-3xl rounded-xl border border-line bg-surface p-6 text-sm print:border-0 print:p-0 print:text-black">
+      <article className="mx-auto max-w-3xl animate-pop rounded-2xl border border-line bg-surface p-5 text-sm shadow-[var(--shadow-lift)] sm:p-8 print:animate-none print:border-0 print:p-0 print:shadow-none print:text-black">
         <header className="flex items-center gap-4 border-b border-line pb-4">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           {c.school.logo && <img src={c.school.logo} alt="" className="h-16 w-16 object-contain" />}
@@ -35,7 +37,7 @@ export default function ReportCardPage() {
           <div><dt className="text-soft">Roll no.</dt><dd className="font-medium">{c.student.roll_no ?? "-"}</dd></div>
           <div><dt className="text-soft">Admission no.</dt><dd className="font-medium">{c.student.admission_no}</dd></div>
         </dl>
-        <table className="w-full border-collapse text-left">
+        <div className="-mx-1 overflow-x-auto"><table className="w-full min-w-[30rem] border-collapse text-left">
           <thead>
             <tr className="border-y border-line text-xs uppercase tracking-wide text-soft">
               <th className="py-2 pr-2">Subject</th>
@@ -69,7 +71,7 @@ export default function ReportCardPage() {
               <td />
             </tr>
           </tfoot>
-        </table>
+        </table></div>
         <div className="mt-5 grid gap-4 sm:grid-cols-2">
           <div>
             <h2 className="font-semibold">Attendance</h2>

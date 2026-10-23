@@ -1,6 +1,8 @@
 "use client";
 
+import { BookMarked, CalendarRange, Layers, Rows3, UserCheck } from "lucide-react";
 import { useState } from "react";
+import { useToast } from "@/components/toast";
 import { Alert, Badge, Button, Card, DataTable, Empty, Field, PageHeader, Select } from "@/components/ui";
 import { api, Page } from "@/lib/api";
 import { AcademicYear, SchoolClass, Section, SectionSubject, Subject, Teacher } from "@/lib/types";
@@ -38,24 +40,24 @@ export default function SetupPage() {
 
 function YearsCard({ years, reload }: { years: AcademicYear[]; reload: () => void }) {
   const form = useForm({ name: "", start_date: "", end_date: "" });
-  const [error, setError] = useState<string | null>(null);
+  const toast = useToast();
   const makeCurrent = async (y: AcademicYear) => {
     try {
       await api(`academic-years/${y.id}/`, { method: "PATCH", body: { is_current: true } });
+      toast.success(`${y.name} is now the current year.`);
       reload();
     } catch (e) {
-      setError(String(e));
+      toast.error(e);
     }
   };
   return (
-    <Card title="Academic years">
-      {error && <Alert>{error}</Alert>}
+    <Card title="Academic years" icon={<CalendarRange aria-hidden />}>
       {years.length === 0 ? <Empty>No academic year yet.</Empty> : (
         <ul className="mb-4 space-y-2 text-sm">
           {years.map((y) => (
-            <li key={y.id} className="flex items-center justify-between rounded-lg border border-line px-3 py-2">
+            <li key={y.id} className="flex items-center justify-between gap-3 rounded-xl border border-line px-3 py-2.5">
               <span><span className="font-medium">{y.name}</span> <span className="text-soft">{y.start_date} to {y.end_date}</span></span>
-              {y.is_current ? <Badge tone="good">Current</Badge> : <button className="text-xs text-brand" onClick={() => makeCurrent(y)}>Make current</button>}
+              {y.is_current ? <Badge tone="good">Current</Badge> : <button className="text-sm font-medium text-brand" onClick={() => makeCurrent(y)}>Make current</button>}
             </li>
           ))}
         </ul>
@@ -74,7 +76,7 @@ function YearsCard({ years, reload }: { years: AcademicYear[]; reload: () => voi
 function ClassesCard({ classes, reload }: { classes: SchoolClass[]; reload: () => void }) {
   const form = useForm({ name: "", order: "" });
   return (
-    <Card title="Classes">
+    <Card title="Classes" icon={<Layers aria-hidden />}>
       {classes.length === 0 ? <Empty>No classes yet. Add Grade 1, Grade 2 and so on.</Empty> : (
         <div className="mb-4 flex flex-wrap gap-2">{classes.map((c) => <Badge key={c.id}>{c.name}</Badge>)}</div>
       )}
@@ -91,7 +93,7 @@ function ClassesCard({ classes, reload }: { classes: SchoolClass[]; reload: () =
 function SubjectsCard({ subjects, reload }: { subjects: Subject[]; reload: () => void }) {
   const form = useForm({ name: "", code: "" });
   return (
-    <Card title="Subjects">
+    <Card title="Subjects" icon={<BookMarked aria-hidden />}>
       {subjects.length === 0 ? <Empty>No subjects yet.</Empty> : (
         <div className="mb-4 flex flex-wrap gap-2">{subjects.map((s) => <Badge key={s.id}>{s.name}{s.code ? ` (${s.code})` : ""}</Badge>)}</div>
       )}
@@ -107,12 +109,18 @@ function SubjectsCard({ subjects, reload }: { subjects: Subject[]; reload: () =>
 
 function SectionsCard({ sections, classes, teachers, currentYear, reload }: { sections: Section[]; classes: SchoolClass[]; teachers: Teacher[]; currentYear: AcademicYear | null; reload: () => void }) {
   const form = useForm({ school_class: "", name: "", class_teacher: "" });
+  const toast = useToast();
   const setTeacher = async (section: Section, teacher: string) => {
-    await api(`sections/${section.id}/`, { method: "PATCH", body: { class_teacher: teacher || null } });
+    try {
+      await api(`sections/${section.id}/`, { method: "PATCH", body: { class_teacher: teacher || null } });
+      toast.success(`Class teacher saved for ${section.display_name}.`);
+    } catch (e) {
+      toast.error(e);
+    }
     reload();
   };
   return (
-    <Card title={`Sections${currentYear ? ` for ${currentYear.name}` : ""}`}>
+    <Card title={`Sections${currentYear ? ` for ${currentYear.name}` : ""}`} icon={<Rows3 aria-hidden />}>
       {!currentYear ? <Empty>Add an academic year first.</Empty> : (
         <>
           {sections.length === 0 ? <Empty>No sections yet. Add 5-A, 5-B and so on.</Empty> : (
@@ -125,7 +133,7 @@ function SectionsCard({ sections, classes, teachers, currentYear, reload }: { se
                 {
                   header: "Class teacher",
                   cell: (s) => (
-                    <select className="rounded-md border border-line bg-surface px-2 py-1 text-sm" value={s.class_teacher ?? ""} onChange={(e) => setTeacher(s, e.target.value)} aria-label={`Class teacher for ${s.display_name}`}>
+                    <select className="select-chevron min-h-10 cursor-pointer appearance-none rounded-xl border border-line bg-surface py-1.5 pl-3 pr-9 text-sm outline-none transition focus:border-brand focus:ring-4 focus:ring-[var(--ring)]" value={s.class_teacher ?? ""} onChange={(e) => setTeacher(s, e.target.value)} aria-label={`Class teacher for ${s.display_name}`}>
                       <option value="">None</option>
                       {teachers.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
                     </select>
@@ -160,13 +168,19 @@ function AssignmentsCard({ sections, subjects, teachers }: { sections: Section[]
   const form = useForm({ subject: "", teacher: "" });
   const list = rows(assignments.data);
 
+  const toast = useToast();
   const changeTeacher = async (row: SectionSubject, teacher: string) => {
-    await api(`section-subjects/${row.id}/`, { method: "PATCH", body: { teacher: teacher || null } });
+    try {
+      await api(`section-subjects/${row.id}/`, { method: "PATCH", body: { teacher: teacher || null } });
+      toast.success(`Teacher saved for ${row.subject_name}.`);
+    } catch (e) {
+      toast.error(e);
+    }
     assignments.reload();
   };
 
   return (
-    <Card title="Who teaches what">
+    <Card title="Who teaches what" icon={<UserCheck aria-hidden />}>
       {sections.length === 0 ? <Empty>Add sections first.</Empty> : (
         <>
           <Select label="Section" value={current} onChange={(e) => setSectionId(e.target.value)} className="mb-4 max-w-xs">
@@ -181,7 +195,7 @@ function AssignmentsCard({ sections, subjects, teachers }: { sections: Section[]
                 {
                   header: "Teacher",
                   cell: (r) => (
-                    <select className="rounded-md border border-line bg-surface px-2 py-1 text-sm" value={r.teacher ?? ""} onChange={(e) => changeTeacher(r, e.target.value)} aria-label={`Teacher for ${r.subject_name}`}>
+                    <select className="select-chevron min-h-10 cursor-pointer appearance-none rounded-xl border border-line bg-surface py-1.5 pl-3 pr-9 text-sm outline-none transition focus:border-brand focus:ring-4 focus:ring-[var(--ring)]" value={r.teacher ?? ""} onChange={(e) => changeTeacher(r, e.target.value)} aria-label={`Teacher for ${r.subject_name}`}>
                       <option value="">Not assigned</option>
                       {teachers.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
                     </select>

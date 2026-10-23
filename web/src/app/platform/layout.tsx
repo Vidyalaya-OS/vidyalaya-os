@@ -1,9 +1,10 @@
 "use client";
 
-import Link from "next/link";
+import { Building2, CirclePlus, School } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
-import { Loading } from "@/components/ui";
+import { AppShell, NavItem } from "@/components/AppShell";
+import { PageLoader } from "@/components/ui";
 import { useSession } from "@/lib/session";
 
 export default function PlatformLayout({ children }: { children: React.ReactNode }) {
@@ -14,20 +15,23 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
     if (ready && !user?.is_platform_owner) router.replace("/");
   }, [ready, user, router]);
 
-  if (!ready || !user?.is_platform_owner) return <Loading />;
+  if (!ready || !user?.is_platform_owner) return <PageLoader />;
+
+  const items: NavItem[] = [
+    { href: "/platform", label: "Schools", icon: Building2, exact: true },
+    { href: "/platform/new", label: "Onboard a school", icon: CirclePlus },
+    ...(memberships.length > 0 ? [{ href: "/choose-school", label: "My schools", icon: School }] : []),
+  ];
 
   return (
-    <div className="min-h-screen">
-      <header className="border-b border-line bg-surface">
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3">
-          <Link href="/platform" className="font-semibold">Platform</Link>
-          <div className="flex items-center gap-3 text-sm">
-            {memberships.length > 0 && <Link href="/choose-school" className="text-brand">My schools</Link>}
-            <button className="text-soft" onClick={() => signOut().then(() => router.replace("/login"))}>Sign out</button>
-          </div>
-        </div>
-      </header>
-      <main className="mx-auto max-w-5xl px-4 py-6">{children}</main>
-    </div>
+    <AppShell
+      brand={{ title: "School platform", subtitle: "Platform owner", initials: "S P" }}
+      groups={[{ items }]}
+      tabs={items}
+      user={{ name: user.name, detail: user.email ?? user.phone ?? "" }}
+      onSignOut={() => signOut().then(() => router.replace("/login"))}
+    >
+      {children}
+    </AppShell>
   );
 }

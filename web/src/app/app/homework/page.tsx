@@ -1,13 +1,18 @@
 "use client";
 
+import { BookOpen, CirclePlus, Paperclip } from "lucide-react";
 import { useState } from "react";
+import { ChildSwitcher } from "@/components/Dashboards";
+import { useDialog } from "@/components/dialog";
 import { HomeworkList } from "@/components/HomeworkList";
 import { useStaffSections } from "@/components/sections";
-import { Alert, Button, Card, Field, PageHeader, Select, Tabs, TextArea } from "@/components/ui";
+import { useToast } from "@/components/toast";
+import { Alert, Button, Card, Empty, Field, PageHeader, Select, Tabs, TextArea } from "@/components/ui";
 import { api, ApiError, Page } from "@/lib/api";
+import { useChildren } from "@/lib/children";
 import { todayIso } from "@/lib/format";
 import { useSession } from "@/lib/session";
-import { Student, Teacher } from "@/lib/types";
+import { Teacher } from "@/lib/types";
 import { rows, useApi } from "@/lib/useApi";
 
 export default function HomeworkPage() {
@@ -17,7 +22,7 @@ export default function HomeworkPage() {
       <PageHeader title="Homework" subtitle={hasRole("teacher") ? "Post homework to your classes and see who has done it." : "Homework, soonest due first."} />
       <div className="space-y-5">
         {hasRole("teacher") && <TeacherHomework />}
-        {hasRole("student") && <Card title="Your homework"><HomeworkList query="upcoming=true" canMarkDone /></Card>}
+        {hasRole("student") && <Card title="Your homework" icon={<BookOpen aria-hidden />} description="Tick each one when you have finished it."><HomeworkList query="upcoming=true" canMarkDone /></Card>}
         {hasRole("parent") && <ParentHomework />}
         {hasRole("admin") && !hasRole("teacher") && <AdminHomework />}
       </div>
@@ -30,16 +35,27 @@ function TeacherHomework() {
   const pairs = rows(me.data)[0]?.teaches ?? [];
   const [tab, setTab] = useState<"upcoming" | "all">("upcoming");
   const [version, setVersion] = useState(0);
+  const dialog = useDialog();
+  const toast = useToast();
   return (
     <>
       <PostHomework pairs={pairs} onPosted={() => setVersion((v) => v + 1)} />
-      <Card title="Your homework">
+      <Card title="Your homework" icon={<BookOpen aria-hidden />}>
         <Tabs value={tab} onChange={setTab} tabs={[{ key: "upcoming", label: "Upcoming" }, { key: "all", label: "All" }]} />
         <HomeworkList
           key={`${tab}-${version}`}
           query={tab === "upcoming" ? "upcoming=true" : ""}
           actions={(h, reload) => (
-            <button className="text-red-600" onClick={async () => { if (confirm(`Remove "${h.title}"?`)) { await api(`homework/${h.id}/`, { method: "DELETE" }).catch(() => {}); reload(); } }}>Remove</button>
+            <button className="font-medium text-red-600" onClick={async () => {
+              if (!(await dialog.confirm({ title: `Remove "${h.title}"?`, body: "Students and parents will no longer see it.", confirmLabel: "Remove", danger: true }))) return;
+              try {
+                await api(`homework/${h.id}/`, { method: "DELETE" });
+                toast.success("Homework removed.");
+              } catch (e) {
+                toast.error(e);
+              }
+              reload();
+            }}>Remove</button>
           )}
         />
       </Card>
@@ -55,7 +71,7 @@ function PostHomework({ pairs, onPosted }: { pairs: Teacher["teaches"]; onPosted
   const [files, setFiles] = useState<FileList | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState(false);
+  const toast = useToast();
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -67,7 +83,8 @@ function PostHomework({ pairs, onPosted }: { pairs: Teacher["teaches"]; onPosted
     setError(null);
     try {
       await api("homework/", { method: "POST", body });
-      setTitle(""); setInstructions(""); setDue(""); setFiles(null); setDone(true);
+      setTitle(""); setInstructions(""); setDue(""); setFiles(null);
+      toast.success("Posted. Students and parents can see it now.");
       (e.target as HTMLFormElement).reset();
       onPosted();
     } catch (err) {
@@ -79,10 +96,9 @@ function PostHomework({ pairs, onPosted }: { pairs: Teacher["teaches"]; onPosted
 
   if (pairs.length === 0) return <Alert tone="info">You are not assigned to teach any subject yet, so you can&apos;t post homework.</Alert>;
   return (
-    <Card title="Post homework">
+    <Card title="Post homework" icon={<CirclePlus aria-hidden />}>
       <form onSubmit={submit} className="grid gap-3 sm:grid-cols-2">
         {error && <div className="sm:col-span-2"><Alert>{error}</Alert></div>}
-        {done && <div className="sm:col-span-2"><Alert tone="success">Posted. Students and parents can see it now.</Alert></div>}
         <Select label="Class and subject" required value={pair} onChange={(e) => setPair(e.target.value)}>
           <option value="">Choose…</option>
           {pairs.map((p) => <option key={`${p.section}|${p.subject}`} value={`${p.section}|${p.subject}`}>{p.section_name} · {p.subject_name}</option>)}
@@ -90,9 +106,13 @@ function PostHomework({ pairs, onPosted }: { pairs: Teacher["teaches"]; onPosted
         <Field label="Due date" type="date" required min={todayIso()} value={due} onChange={(e) => setDue(e.target.value)} />
         <Field label="Title" required value={title} onChange={(e) => setTitle(e.target.value)} className="sm:col-span-2" />
         <TextArea label="Instructions" value={instructions} onChange={(e) => setInstructions(e.target.value)} className="sm:col-span-2" />
-        <label className="block text-sm sm:col-span-2">
-          <span className="mb-1 block font-medium">Attachments (optional, up to 10 MB each)</span>
-          <input type="file" multiple onChange={(e) => setFiles(e.target.files)} className="text-sm" />
+        <label className="flex cursor-pointer items-center gap-3 rounded-xl border-2 border-dashed border-line px-4 py-3 text-sm transition hover:border-brand/50 hover:bg-muted/50 sm:col-span-2">
+          <Paperclip className="size-5 text-brand" aria-hidden />
+          <span className="min-w-0 flex-1">
+            <span className="block font-medium">{files?.length ? `${files.length} file${files.length === 1 ? "" : "s"} attached` : "Attach files"}</span>
+            <span className="block truncate text-xs text-soft">{files?.length ? Array.from(files).map((f) => f.name).join(", ") : "Optional, up to 10 MB each"}</span>
+          </span>
+          <input type="file" multiple onChange={(e) => setFiles(e.target.files)} className="sr-only" />
         </label>
         <Button type="submit" busy={busy} className="sm:justify-self-start">Post homework</Button>
       </form>
@@ -101,23 +121,16 @@ function PostHomework({ pairs, onPosted }: { pairs: Teacher["teaches"]; onPosted
 }
 
 function ParentHomework() {
-  const children = useApi<Student[]>("my-children");
-  const [child, setChild] = useState("");
-  const list = children.data ?? [];
-  const chosen = child || list[0]?.id;
-  if (!children.data) return null;
-  if (list.length === 0) return <Alert tone="info">No children are linked to your account yet.</Alert>;
+  const { list, chosen, choose, loading } = useChildren();
+  if (loading) return null;
+  if (!chosen) return <Empty title="No children linked yet">Ask the school office to link your child to your account.</Empty>;
   return (
-    <Card
-      title={list.length > 1 ? "Your children's homework" : `${list[0].name}'s homework`}
-      actions={list.length > 1 ? (
-        <Select label="Child" value={chosen} onChange={(e) => setChild(e.target.value)}>
-          {list.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </Select>
-      ) : undefined}
-    >
-      <HomeworkList key={chosen} query={`student=${chosen}&upcoming=true`} />
-    </Card>
+    <>
+      <ChildSwitcher items={list.map((c) => ({ id: c.id, name: c.name, detail: c.current_enrollment?.section_name }))} value={chosen.id} onChange={choose} />
+      <Card title={`${chosen.name}'s homework`} icon={<BookOpen aria-hidden />}>
+        <HomeworkList key={chosen.id} query={`student=${chosen.id}&upcoming=true`} />
+      </Card>
+    </>
   );
 }
 
@@ -125,7 +138,7 @@ function AdminHomework() {
   const sections = useStaffSections();
   const [section, setSection] = useState("");
   return (
-    <Card title="All homework" actions={
+    <Card title="All homework" icon={<BookOpen aria-hidden />} actions={
       <Select label="Section" value={section} onChange={(e) => setSection(e.target.value)}>
         <option value="">All sections</option>
         {sections.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}

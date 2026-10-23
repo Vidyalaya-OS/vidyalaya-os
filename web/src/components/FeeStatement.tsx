@@ -2,8 +2,11 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { Alert, Badge, Button, Card, DataTable, Empty, Field, Loading, Select, Stat } from "@/components/ui";
-import { api, ApiError } from "@/lib/api";
+import { Banknote, Receipt, ReceiptText } from "lucide-react";
+import { useDialog } from "@/components/dialog";
+import { useToast } from "@/components/toast";
+import { Alert, Badge, Button, Card, DataTable, Empty, ErrorState, Field, Loading, Select, Stat } from "@/components/ui";
+import { api } from "@/lib/api";
 import { formatDate, money, todayIso } from "@/lib/format";
 import { FeeHead, FeeStatement as Statement } from "@/lib/types";
 import { useApi } from "@/lib/useApi";
@@ -21,28 +24,29 @@ export const MODES = [
  * Admins can also record payments, give discounts and reverse mistakes. */
 export function FeeStatement({ studentId, isAdmin }: { studentId: string; isAdmin: boolean }) {
   const data = useApi<Statement>(`fees/students/${studentId}`);
-  const [notice, setNotice] = useState<{ tone: "success" | "error"; text: string } | null>(null);
-  if (data.error) return <Alert>{data.error}</Alert>;
-  if (!data.data) return <Loading />;
+  const toast = useToast();
+  const dialog = useDialog();
+  if (data.error && !data.data) return <ErrorState message={data.error} onRetry={data.reload} />;
+  if (!data.data) return <Loading variant="stats" />;
   const s = data.data;
   const cur = s.currency;
-  const done = (text: string) => { setNotice({ tone: "success", text }); data.reload(); };
-  const fail = (e: unknown) => setNotice({ tone: "error", text: e instanceof ApiError ? e.message : "That did not work." });
+  const done = (text: string) => { toast.success(text); data.reload(); };
+  const fail = (e: unknown) => toast.error(e);
+  const billed = Number(s.totals.due) - Number(s.totals.discount);
 
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="stagger grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat label="Total due" value={money(s.totals.due, cur)} hint={Number(s.totals.discount) ? `after ${money(s.totals.discount, cur)} discount` : s.academic_year_name} />
-        <Stat label="Paid" value={money(s.totals.paid, cur)} tone="good" />
+        <Stat label="Paid" value={money(s.totals.paid, cur)} tone="good" progress={billed > 0 ? (Number(s.totals.paid) / billed) * 100 : null} />
         <Stat label="Remaining" value={money(s.totals.remaining, cur)} tone={Number(s.totals.remaining) > 0 ? "warn" : "good"} />
         <Stat label="Overdue" value={money(s.totals.overdue, cur)} tone={Number(s.totals.overdue) > 0 ? "bad" : undefined}
           hint={s.totals.next_due ? `Next: ${money(s.totals.next_due.remaining, cur)} by ${formatDate(s.totals.next_due.due_date)}` : undefined} />
       </div>
-      {notice && <Alert tone={notice.tone}>{notice.text}</Alert>}
       {isAdmin && Number(s.totals.remaining) > 0 && (
         <RecordPayment key={s.totals.remaining} studentId={studentId} remaining={s.totals.remaining} currency={cur} onDone={(receipt) => done(`Payment recorded. Receipt ${receipt}.`)} />
       )}
-      <Card title="Fees">
+      <Card title="Fees" icon={<ReceiptText aria-hidden />}>
         {s.dues.length === 0 ? <Empty>No fees billed for {s.academic_year_name} yet.</Empty> : (
           <DataTable
             rows={s.dues}
@@ -60,7 +64,7 @@ export function FeeStatement({ studentId, isAdmin }: { studentId: string; isAdmi
         )}
         {isAdmin && <AddCharge studentId={studentId} onDone={() => done("Charge added.")} />}
       </Card>
-      <Card title="Payments and receipts">
+      <Card title="Payments and receipts" icon={<Receipt aria-hidden />}>
         {s.payments.length === 0 ? <Empty>No payments yet.</Empty> : (
           <DataTable
             rows={s.payments}
@@ -74,9 +78,15 @@ export function FeeStatement({ studentId, isAdmin }: { studentId: string; isAdmi
               ...(isAdmin ? [{
                 header: "",
                 cell: (p: Statement["payments"][number]) => !p.is_reversal && !p.is_reversed ? (
-                  <button className="text-xs text-red-600" onClick={() => {
-                    const reason = prompt(`Reverse ${p.receipt_no}? Give a reason (for example, cheque bounced).`);
-                    if (reason) api(`payments/${p.id}/reverse/`, { method: "POST", body: { reason } }).then(() => done(`${p.receipt_no} reversed.`), fail);
+                  <button className="text-sm font-medium text-red-600" onClick={async () => {
+                    const v = await dialog.prompt({
+                      title: `Reverse receipt ${p.receipt_no}?`,
+                      body: "Payments are never edited or deleted. A reversing entry is added, and the fees it paid become due again.",
+                      fields: [{ name: "reason", label: "Reason", required: true, placeholder: "For example, cheque bounced" }],
+                      confirmLabel: "Reverse payment",
+                      danger: true,
+                    });
+                    if (v?.reason) api(`payments/${p.id}/reverse/`, { method: "POST", body: { reason: v.reason } }).then(() => done(`${p.receipt_no} reversed.`), fail);
                   }}>Reverse</button>
                 ) : null,
               }] : []),
@@ -91,7 +101,7 @@ export function FeeStatement({ studentId, isAdmin }: { studentId: string; isAdmi
 function RecordPayment({ studentId, remaining, currency, onDone }: { studentId: string; remaining: string; currency: string; onDone: (receipt: string) => void }) {
   const form = useForm({ amount: remaining, paid_on: todayIso(), mode: "cash", reference: "", notes: "" });
   return (
-    <Card title="Record a payment">
+    <Card title="Record a payment" icon={<Banknote aria-hidden />} className="border-brand/30">
       <form
         onSubmit={form.submit(async (v) => {
           const p = await api<{ receipt_no: string }>("payments/", { method: "POST", body: { student: studentId, ...compact(v) } });
@@ -114,14 +124,22 @@ function RecordPayment({ studentId, remaining, currency, onDone }: { studentId: 
 }
 
 function Discount({ due, onDone, onError }: { due: Statement["dues"][number]; onDone: () => void; onError: (e: unknown) => void }) {
+  const dialog = useDialog();
   return (
     <button
-      className="text-xs text-brand"
-      onClick={() => {
-        const amount = prompt(`Discount on ${due.name} (amount ${due.amount})`, due.discount);
-        if (amount == null) return;
-        const reason = prompt("Reason (for example, sibling or scholarship)", due.discount_reason) ?? "";
-        api(`fee-dues/${due.id}/`, { method: "PATCH", body: { discount: amount || "0", discount_reason: reason } }).then(onDone, onError);
+      className="text-sm font-medium text-brand"
+      onClick={async () => {
+        const v = await dialog.prompt({
+          title: `Discount on ${due.name}`,
+          body: `The fee is ${due.amount}. Enter 0 to remove a discount.`,
+          fields: [
+            { name: "discount", label: "Discount amount", type: "number", min: "0", step: "0.01", initial: due.discount, required: true },
+            { name: "reason", label: "Reason", initial: due.discount_reason, placeholder: "For example, sibling or scholarship" },
+          ],
+          confirmLabel: "Save discount",
+        });
+        if (!v) return;
+        api(`fee-dues/${due.id}/`, { method: "PATCH", body: { discount: v.discount || "0", discount_reason: v.reason } }).then(onDone, onError);
       }}
     >
       Discount
@@ -137,7 +155,7 @@ function AddCharge({ studentId, onDone }: { studentId: string; onDone: () => voi
   return (
     <form
       onSubmit={form.submit((v) => api("fee-dues/", { method: "POST", body: { student: studentId, ...v } }), () => { setOpen(false); onDone(); })}
-      className="mt-4 grid gap-3 rounded-lg border border-line p-3 sm:grid-cols-4"
+      className="mt-4 grid animate-enter gap-3 rounded-2xl border border-line bg-muted/40 p-4 sm:grid-cols-4"
     >
       {form.error && <div className="sm:col-span-4"><Alert>{form.error}</Alert></div>}
       <Select label="Fee head" required {...form.bind("fee_head")}>

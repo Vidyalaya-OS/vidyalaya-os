@@ -14,7 +14,7 @@ export default function StudentFeesPage() {
   const s = student.data;
   return (
     <>
-      <PageHeader title={s ? `Fees: ${s.name}` : "Fees"} subtitle={s ? `Admission no. ${s.admission_no} · ${s.current_enrollment?.section_name ?? "No section"}` : undefined} />
+      <PageHeader back={hasRole("admin") ? { href: "/app/fees", label: "Fees" } : undefined} title={s ? `Fees: ${s.name}` : "Fees"} subtitle={s ? `Admission no. ${s.admission_no} · ${s.current_enrollment?.section_name ?? "No section"}` : undefined} />
       <FeeStatement studentId={id} isAdmin={hasRole("admin")} />
     </>
   );

@@ -1,12 +1,14 @@
 "use client";
 
+import { GraduationCap, Search, UserPlus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Alert, Badge, Button, Card, DataTable, Empty, Field, Loading, PageHeader, Select, statusTone } from "@/components/ui";
+import { useToast } from "@/components/toast";
+import { Alert, Avatar, Badge, Button, Card, DataTable, Empty, ErrorState, Field, Loading, PageHeader, Select, statusTone } from "@/components/ui";
 import { api, Page } from "@/lib/api";
 import { useSession } from "@/lib/session";
 import { Section, Student } from "@/lib/types";
-import { rows, useApi } from "@/lib/useApi";
+import { rows, useApi, useDebounced } from "@/lib/useApi";
 import { compact, useForm } from "@/lib/useForm";
 
 export default function StudentsPage() {
@@ -16,7 +18,9 @@ export default function StudentsPage() {
   const [section, setSection] = useState("");
   const [adding, setAdding] = useState(false);
   const sections = useApi<Page<Section>>("sections/");
-  const query = new URLSearchParams(compact({ search, section }) as Record<string, string>).toString();
+  const term = useDebounced(search);
+  const toast = useToast();
+  const query = new URLSearchParams(compact({ search: term, section }) as Record<string, string>).toString();
   const students = useApi<Page<Student>>(`students/?${query}`);
   const isAdmin = hasRole("admin");
 
@@ -25,20 +29,19 @@ export default function StudentsPage() {
       <PageHeader
         title="Students"
         subtitle={isAdmin ? "Register students and link their parents." : "Students in the sections you teach."}
-        actions={isAdmin && !adding ? <Button onClick={() => setAdding(true)}>Add student</Button> : undefined}
+        actions={isAdmin && !adding ? <Button onClick={() => setAdding(true)}><UserPlus aria-hidden /> Add student</Button> : undefined}
       />
-      {adding && <AddStudent sections={rows(sections.data)} onDone={() => { setAdding(false); students.reload(); }} onCancel={() => setAdding(false)} />}
+      {adding && <AddStudent sections={rows(sections.data)} onDone={() => { setAdding(false); students.reload(); toast.success("Student added. Login invites are on their way."); }} onCancel={() => setAdding(false)} />}
       <Card>
         <div className="mb-4 grid gap-3 sm:grid-cols-3">
-          <Field label="Search" placeholder="Name or admission no." value={search} onChange={(e) => setSearch(e.target.value)} />
+          <Field label="Search" icon={<Search aria-hidden />} type="search" placeholder="Name or admission no." value={search} onChange={(e) => setSearch(e.target.value)} />
           <Select label="Section" value={section} onChange={(e) => setSection(e.target.value)}>
             <option value="">All sections</option>
             {rows(sections.data).map((s) => <option key={s.id} value={s.id}>{s.display_name}</option>)}
           </Select>
         </div>
-        {students.error && <Alert>{students.error}</Alert>}
-        {students.loading && !students.data ? <Loading /> : rows(students.data).length === 0 ? (
-          <Empty>No students found.</Empty>
+        {students.error && !students.data ? <ErrorState message={students.error} onRetry={students.reload} /> : students.loading && !students.data ? <Loading variant="table" rows={6} /> : rows(students.data).length === 0 ? (
+          <Empty icon={<GraduationCap aria-hidden />} title={term || section ? "No students match" : "No students yet"}>{term || section ? "Try another name or section." : isAdmin ? "Add a student, or import a spreadsheet from Import." : "Students show here once they are in your sections."}</Empty>
         ) : (
           <>
             <DataTable
@@ -46,7 +49,7 @@ export default function StudentsPage() {
               rowKey={(s) => s.id}
               onRowClick={(s) => router.push(`/app/students/${s.id}`)}
               columns={[
-                { header: "Name", cell: (s) => <span className="font-medium">{s.name}</span> },
+                { header: "Name", cell: (s) => <span className="flex items-center gap-3"><Avatar name={s.name} size="sm" /><span className="font-medium">{s.name}</span></span> },
                 { header: "Adm. no.", cell: (s) => s.admission_no },
                 { header: "Section", cell: (s) => s.current_enrollment?.section_name ?? "-" },
                 { header: "Roll", cell: (s) => s.current_enrollment?.roll_no ?? "-" },
@@ -81,7 +84,7 @@ function AddStudent({ sections, onDone, onCancel }: { sections: Section[]; onDon
   const guardianError = form.errors.guardian_list;
 
   return (
-    <Card title="New student" className="mb-5">
+    <Card title="New student" icon={<UserPlus aria-hidden />} className="mb-5 animate-enter">
       <form onSubmit={save} className="space-y-4">
         {form.error && <Alert>{form.error}</Alert>}
         <div className="grid gap-4 sm:grid-cols-3">
@@ -102,7 +105,7 @@ function AddStudent({ sections, onDone, onCancel }: { sections: Section[]; onDon
           <Field label="Student email" type="email" hint="Optional. Lets the student log in." {...form.bind("email")} />
           <Field label="Student phone" type="tel" {...form.bind("phone")} />
         </div>
-        <h3 className="pt-2 text-sm font-semibold">Parent</h3>
+        <h3 className="border-t border-line pt-4 text-sm font-semibold">Parent</h3>
         {guardianError && <Alert>{guardianError}</Alert>}
         <div className="grid gap-4 sm:grid-cols-4">
           <Field label="Parent name" {...form.bind("guardian_name")} />

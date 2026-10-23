@@ -18,9 +18,24 @@ This repository holds the **core platform** (build step 2 of the spec), the **ac
 - **After-class quizzes**: a teacher sets a short quiz on the topic taught that day (multiple choice or true/false, with marks per question and an open and close time) for a section and subject they teach. Questions are saved to the teacher's own question bank, tagged by subject and topic, to reuse later. Students take it once while it is open and get their score straight away; the right answers show after it closes (or when the teacher closes it early). Teachers see each student's score and which questions most of the class got wrong. Parents see their children's scores. Once anyone has taken a quiz its questions are fixed and it cannot be removed.
 - **Student home screen**: today's classes, quizzes to take, homework due this week (and overdue), latest test results with report card links, recent quiz scores and attendance.
 - **Parent home screen**: for each child, today's attendance and this month's percentage, homework due, latest marks and report cards, quiz scores, and fees: total, paid, remaining, overdue and the next installment.
-- **Web app** for all of the above, mobile-first.
+- **Admin home screen**: students and teachers, attendance today with the sections not marked yet, fees collected this month and overdue, fee collection by class, the overdue list with parents' phone numbers to call, and the school setup checklist.
+- **Teacher home screen**: today's classes with the one going on now, attendance still to mark, open quizzes, tests waiting for marks and homework due.
+- **Web app** for all of the above. See "The web app" below.
 
-Notifications, announcements and the admin and teacher home screens come next.
+Notifications and announcements come next.
+
+## The web app
+
+The web app in `web/` works on phones, tablets and computers, in light and dark mode.
+
+- **One layout for every role.** On a computer there is a sidebar; on a phone there is a top bar, four tabs at the bottom for that role's most used screens, and a "More" drawer for the rest. Each person sees only the screens their roles allow. Someone with several roles (a teacher who is also a parent) switches home screens from the top of Home.
+- **Portals**: the platform owner sees every school with head counts and fees; admins get the school office; teachers get their classes; students get their own record; parents get each child's record, with a child switcher at the top.
+- **Calendar**: one month of homework due dates, tests, quizzes closing and fee installments, with filters, the chosen day's items and that day's classes. The timetable has a week grid and a day-by-day view with the current class highlighted. Attendance has a month calendar, the month's split and a six-month trend.
+- **Design**: Plus Jakarta Sans at a 16px base size, a shared set of components (`src/components/ui.tsx`), simple charts (`charts.tsx`), tables that turn into cards on phones, and light animation (page entry, count-up numbers, growing bars). Animation is switched off for people who ask their device for reduced motion. The theme button cycles system, light and dark.
+- **Errors and loading**: skeletons while loading, empty states with a next step, error boxes with Retry, a separate message when the device is offline, toasts instead of browser alerts, confirm and input dialogs instead of browser pop-ups, field-level form messages, crash screens per area, a 404 page, and a return to sign-in (then back to the same page) when a session ends.
+- **Production**: strict TypeScript, ESLint clean, `next build` passes, security headers, an installable web app manifest with icons, keyboard focus rings, a skip link and screen reader labels. API responses are cached for a few minutes per school and stale requests are cancelled.
+
+Screenshots of every role on phone and computer are in the shared `screenshots/` folder.
 
 ## Layout
 

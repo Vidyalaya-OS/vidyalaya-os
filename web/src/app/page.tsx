@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
-import { Loading } from "@/components/ui";
+import { PageLoader } from "@/components/ui";
 import { useSession } from "@/lib/session";
 
 /** Send people where they belong: login, school picker, platform or their school. */
@@ -18,5 +18,5 @@ export default function Home() {
     else router.replace("/choose-school");
   }, [ready, user, school, memberships, router]);
 
-  return <Loading />;
+  return <PageLoader />;
 }

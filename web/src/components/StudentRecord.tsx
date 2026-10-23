@@ -1,10 +1,14 @@
 "use client";
 
+import { Award, ClipboardCheck, TrendingUp } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { Legend, MonthGrid, MonthNav, shiftMonth } from "@/components/Calendar";
+import { BarList, Donut, TrendLine } from "@/components/charts";
 import { FeeStatement } from "@/components/FeeStatement";
 import { HomeworkList } from "@/components/HomeworkList";
-import { Badge, Card, Empty, Field, Loading, Stat, Tabs, cx } from "@/components/ui";
+import { Async, Badge, ButtonLink, Card, Empty, Loading, Stat, Tabs } from "@/components/ui";
+import { api } from "@/lib/api";
 import { num, pct, todayIso } from "@/lib/format";
 import { useSession } from "@/lib/session";
 import { AttendanceStatus, StudentAttendance, TermResult } from "@/lib/types";
@@ -16,109 +20,188 @@ type Tab = "attendance" | "results" | "homework" | "fees";
 export function StudentRecord({ studentId }: { studentId: string }) {
   const { hasRole } = useSession();
   const seesFees = hasRole("admin", "student", "parent");
-  const seesHomework = hasRole("student", "parent", "admin", "teacher");
   const tabs: { key: Tab; label: string }[] = [
     { key: "attendance", label: "Attendance" },
     { key: "results", label: "Results" },
-    ...(seesHomework ? [{ key: "homework" as Tab, label: "Homework" }] : []),
+    { key: "homework", label: "Homework" },
     ...(seesFees ? [{ key: "fees" as Tab, label: "Fees" }] : []),
   ];
   const [tab, setTab] = useState<Tab>("attendance");
   return (
     <section className="mt-6 first:mt-0">
       <Tabs<Tab> tabs={tabs} value={tab} onChange={setTab} />
-      {tab === "attendance" && <AttendanceCalendar studentId={studentId} />}
-      {tab === "results" && <Results studentId={studentId} />}
-      {tab === "homework" && <Card><HomeworkList query={`student=${studentId}&upcoming=true`} canMarkDone={hasRole("student") && !hasRole("parent")} /></Card>}
-      {tab === "fees" && <FeeStatement studentId={studentId} isAdmin={hasRole("admin")} />}
+      <div key={tab} className="animate-enter">
+        {tab === "attendance" && <AttendanceCalendar studentId={studentId} />}
+        {tab === "results" && <Results studentId={studentId} />}
+        {tab === "homework" && <Card><HomeworkList query={`student=${studentId}&upcoming=true`} canMarkDone={hasRole("student") && !hasRole("parent")} /></Card>}
+        {tab === "fees" && <FeeStatement studentId={studentId} isAdmin={hasRole("admin")} />}
+      </div>
     </section>
   );
 }
 
-const COLORS: Record<AttendanceStatus, string> = {
-  present: "bg-green-100 text-green-900 dark:bg-green-950 dark:text-green-200",
-  absent: "bg-red-100 text-red-900 dark:bg-red-950 dark:text-red-200",
-  late: "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200",
-  leave: "bg-slate-200 text-slate-800 dark:bg-slate-800 dark:text-slate-200",
+export const ATTENDANCE_COLORS: Record<AttendanceStatus, { cell: string; dot: string; label: string }> = {
+  present: { cell: "border-green-200 bg-green-50 text-green-900 dark:border-green-900/60 dark:bg-green-950/50 dark:text-green-200", dot: "bg-green-500", label: "Present" },
+  absent: { cell: "border-red-200 bg-red-50 text-red-900 dark:border-red-900/60 dark:bg-red-950/50 dark:text-red-200", dot: "bg-red-500", label: "Absent" },
+  late: { cell: "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/50 dark:text-amber-200", dot: "bg-amber-500", label: "Late" },
+  leave: { cell: "border-slate-200 bg-slate-100 text-slate-800 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-200", dot: "bg-slate-400", label: "On leave" },
 };
+
+function tone(p: number | null | undefined) {
+  return p == null ? undefined : p < 75 ? "bad" : p < 90 ? "warn" : "good";
+}
 
 export function AttendanceCalendar({ studentId }: { studentId: string }) {
   const [month, setMonth] = useState(todayIso().slice(0, 7));
   const data = useApi<StudentAttendance>(`attendance/students/${studentId}?month=${month}`);
-  if (data.error) return <p className="text-sm text-red-600">{data.error}</p>;
-  if (!data.data) return <Loading />;
-  const d = data.data;
-  const byDate = new Map(d.days.map((x) => [x.date, x]));
-  const [y, m] = d.month.split("-").map(Number);
-  const daysInMonth = new Date(y, m, 0).getDate();
-  const offset = (new Date(y, m - 1, 1).getDay() + 6) % 7; // Monday first
-  const cells = [...Array(offset).fill(null), ...Array.from({ length: daysInMonth }, (_, i) => i + 1)];
+  const d = data.data?.month === month ? data.data : null;
+  const byDate = new Map((d?.days ?? []).map((x) => [x.date, x]));
+
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat label="This month" value={pct(d.month_summary.percentage)} hint={`${d.month_summary.attended} of ${d.month_summary.marked_days} days`} />
-        <Stat label="Absent this month" value={d.month_summary.absent} tone={d.month_summary.absent ? "bad" : undefined} />
-        <Stat label={`Year ${d.academic_year ?? ""}`} value={pct(d.year_summary.percentage)} tone={d.year_summary.percentage != null && d.year_summary.percentage < 75 ? "bad" : "good"} hint={`${d.year_summary.attended} of ${d.year_summary.marked_days} days`} />
-        <Stat label="Late this year" value={d.year_summary.late} />
-      </div>
-      <Card title="Calendar" actions={<Field label="Month" type="month" value={month} onChange={(e) => setMonth(e.target.value)} />}>
-        <div className="grid grid-cols-7 gap-1 text-center text-xs">
-          {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((w) => <div key={w} className="py-1 text-soft">{w}</div>)}
-          {cells.map((day, i) => {
-            if (day == null) return <div key={`e${i}`} />;
-            const iso = `${d.month}-${String(day).padStart(2, "0")}`;
-            const rec = byDate.get(iso);
-            return (
-              <div key={iso} title={rec ? `${rec.status}${rec.remark ? `: ${rec.remark}` : ""}` : "Not marked"}
-                className={cx("rounded-md py-2", rec ? COLORS[rec.status] : "text-soft")}>
-                <div className="font-medium">{day}</div>
-                <div className="text-[10px] capitalize">{rec?.status ?? ""}</div>
-              </div>
-            );
-          })}
+    <div className="space-y-5">
+      {data.data && (
+        <div className="stagger grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <Stat label="This month" value={pct(data.data.month_summary.percentage)} tone={tone(data.data.month_summary.percentage)} progress={data.data.month_summary.percentage} hint={`${data.data.month_summary.attended} of ${data.data.month_summary.marked_days} days`} />
+          <Stat label="Absent this month" value={data.data.month_summary.absent} tone={data.data.month_summary.absent ? "bad" : undefined} />
+          <Stat label={`Year ${data.data.academic_year ?? ""}`} value={pct(data.data.year_summary.percentage)} tone={tone(data.data.year_summary.percentage)} progress={data.data.year_summary.percentage} hint={`${data.data.year_summary.attended} of ${data.data.year_summary.marked_days} days`} />
+          <Stat label="Late this year" value={data.data.year_summary.late} />
         </div>
-      </Card>
+      )}
+      <div className="grid gap-5 xl:grid-cols-[1fr_20rem]">
+        <Card title="Calendar" icon={<ClipboardCheck aria-hidden />} actions={<MonthNav month={month} onChange={setMonth} max={todayIso().slice(0, 7)} />}>
+          {data.error && !data.data ? (
+            <Async state={data}>{() => null}</Async>
+          ) : !d ? (
+            <Loading variant="text" rows={6} />
+          ) : (
+            <>
+              <MonthGrid
+                month={month}
+                dayClass={(iso) => {
+                  const rec = byDate.get(iso);
+                  return rec ? ATTENDANCE_COLORS[rec.status].cell : undefined;
+                }}
+                dayNote={(iso) => {
+                  const rec = byDate.get(iso);
+                  return rec ? <span className="hidden sm:inline" title={rec.remark || undefined}>{ATTENDANCE_COLORS[rec.status].label}</span> : null;
+                }}
+              />
+              <div className="mt-4">
+                <Legend items={Object.values(ATTENDANCE_COLORS).map((c) => ({ label: c.label, className: c.dot }))} />
+              </div>
+            </>
+          )}
+        </Card>
+        <div className="space-y-5">
+          {d && (
+            <Card title="This month">
+              <Donut
+                size={110}
+                segments={[
+                  { label: "Present", value: d.month_summary.present, tone: "good" },
+                  { label: "Late", value: d.month_summary.late, tone: "warn" },
+                  { label: "Absent", value: d.month_summary.absent, tone: "bad" },
+                  { label: "On leave", value: d.month_summary.leave, tone: "neutral" },
+                ]}
+                centre={<span className="text-base font-bold tabular-nums">{pct(d.month_summary.percentage)}</span>}
+              />
+            </Card>
+          )}
+          <AttendanceTrend studentId={studentId} />
+        </div>
+      </div>
     </div>
+  );
+}
+
+/** The last six months of attendance as a line. */
+function AttendanceTrend({ studentId }: { studentId: string }) {
+  const [points, setPoints] = useState<{ label: string; value: number | null }[] | null>(null);
+  useEffect(() => {
+    const now = todayIso().slice(0, 7);
+    const months = Array.from({ length: 6 }, (_, i) => shiftMonth(now, i - 5));
+    let live = true;
+    Promise.all(months.map((m) => api<StudentAttendance>(`attendance/students/${studentId}?month=${m}`).catch(() => null))).then((res) => {
+      if (!live) return;
+      setPoints(months.map((m, i) => ({
+        label: new Date(`${m}-01T00:00:00`).toLocaleDateString(undefined, { month: "short" }),
+        value: res[i]?.month_summary.marked_days ? res[i]!.month_summary.percentage : null,
+      })));
+    });
+    return () => {
+      live = false;
+    };
+  }, [studentId]);
+  return (
+    <Card title="Last six months" icon={<TrendingUp aria-hidden />} description="The dashed line is 75%.">
+      {!points ? <Loading variant="text" /> : points.every((p) => p.value == null) ? <Empty>No attendance marked yet.</Empty> : <TrendLine points={points} threshold={75} />}
+    </Card>
   );
 }
 
 export function Results({ studentId }: { studentId: string }) {
   const data = useApi<{ terms: TermResult[] }>(`results/students/${studentId}`);
-  if (data.error) return <p className="text-sm text-red-600">{data.error}</p>;
-  if (!data.data) return <Loading />;
-  const terms = data.data.terms.filter((t) => t.subjects.length > 0 || t.report_card_published);
-  if (terms.length === 0) return <Empty>No results are published yet.</Empty>;
   return (
-    <div className="space-y-4">
-      {terms.map((t) => (
-        <Card key={t.exam_term} title={t.exam_term_name} actions={
-          <div className="flex items-center gap-3 text-sm">
-            {t.percentage != null && <span className="font-medium">{pct(t.percentage)} {t.grade && <Badge tone="good">{t.grade}</Badge>}</span>}
-            {t.report_card_published && <Link className="text-brand" href={`/app/report-cards/${studentId}/${t.exam_term}`}>Report card</Link>}
-          </div>
-        }>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="border-b border-line text-xs uppercase tracking-wide text-soft">
-                  <th className="py-2 pr-3">Subject</th><th className="py-2 pr-3 text-right">Marks</th><th className="py-2 pr-3">Grade</th><th className="py-2 text-right">Class avg.</th>
-                </tr>
-              </thead>
-              <tbody>
-                {t.subjects.map((s) => (
-                  <tr key={s.exam} className="border-b border-line last:border-0">
-                    <td className="py-2 pr-3">{s.subject_name}{s.status === "draft" && <span className="ml-2"><Badge tone="warn">Not published</Badge></span>}</td>
-                    <td className="py-2 pr-3 text-right tabular-nums">{s.is_absent ? "Absent" : `${num(s.marks_obtained)} / ${num(s.max_marks)}`}</td>
-                    <td className="py-2 pr-3 font-medium">{s.grade ?? "-"}</td>
-                    <td className="py-2 text-right tabular-nums">{s.class_average ?? "-"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <p className="mt-2 text-sm text-soft">Total {num(t.total)} / {num(t.total_max)}</p>
-        </Card>
-      ))}
-    </div>
+    <Async
+      state={data}
+      loading={<Loading variant="cards" rows={2} />}
+      isEmpty={(r) => r.terms.every((t) => t.subjects.length === 0 && !t.report_card_published)}
+      empty={<Empty icon={<TrendingUp aria-hidden />} title="No results yet">Results show here once the school publishes them.</Empty>}
+    >
+      {(r) => (
+        <div className="stagger space-y-5">
+          {r.terms.filter((t) => t.subjects.length > 0 || t.report_card_published).map((t) => (
+            <Card
+              key={t.exam_term}
+              title={t.exam_term_name}
+              icon={<Award aria-hidden />}
+              description={`Total ${num(t.total)} / ${num(t.total_max)}`}
+              actions={
+                <div className="flex items-center gap-2">
+                  {t.percentage != null && <span className="text-lg font-bold tabular-nums">{pct(t.percentage)}</span>}
+                  {t.grade && <Badge tone="good">{t.grade}</Badge>}
+                  {t.report_card_published && <ButtonLink size="sm" variant="soft" href={`/app/report-cards/${studentId}/${t.exam_term}`}>Report card</ButtonLink>}
+                </div>
+              }
+            >
+              <div className="grid gap-6 lg:grid-cols-2">
+                <BarList
+                  valueLabel="Score"
+                  compareLabel="Class average"
+                  items={t.subjects.map((s) => ({
+                    label: s.subject_name,
+                    value: s.is_absent ? null : s.percentage,
+                    compare: s.class_average != null && Number(s.max_marks) ? (s.class_average / Number(s.max_marks)) * 100 : null,
+                    note: s.is_absent ? "Absent" : undefined,
+                  }))}
+                />
+                <div className="-mx-1 overflow-x-auto">
+                  <table className="w-full text-left text-sm">
+                    <thead>
+                      <tr className="border-b border-line text-xs font-semibold uppercase tracking-wide text-soft">
+                        <th className="px-1 py-2">Subject</th><th className="px-1 py-2 text-right">Marks</th><th className="px-1 py-2">Grade</th><th className="px-1 py-2 text-right">Class avg.</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {t.subjects.map((s) => (
+                        <tr key={s.exam} className="border-b border-line last:border-0">
+                          <td className="px-1 py-2.5">{s.subject_name}{s.status === "draft" && <span className="ml-2"><Badge tone="warn">Not published</Badge></span>}</td>
+                          <td className="px-1 py-2.5 text-right tabular-nums">{s.is_absent ? "Absent" : `${num(s.marks_obtained)} / ${num(s.max_marks)}`}</td>
+                          <td className="px-1 py-2.5 font-semibold">{s.grade ?? "-"}</td>
+                          <td className="px-1 py-2.5 text-right tabular-nums">{s.class_average ?? "-"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              {t.report_card_published && (
+                <p className="mt-4 text-sm"><Link className="font-medium text-brand hover:underline" href={`/app/report-cards/${studentId}/${t.exam_term}`}>Open the report card to print or save as PDF</Link></p>
+              )}
+            </Card>
+          ))}
+        </div>
+      )}
+    </Async>
   );
 }

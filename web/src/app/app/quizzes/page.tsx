@@ -1,13 +1,17 @@
 "use client";
 
+import { CirclePlus, Lightbulb, Trash2 } from "lucide-react";
 import { useState } from "react";
+import { ChildSwitcher } from "@/components/Dashboards";
 import { QuizList } from "@/components/QuizList";
 import { useStaffSections } from "@/components/sections";
-import { Alert, Button, Card, Field, PageHeader, Select, Tabs, TextArea, cx } from "@/components/ui";
+import { useToast } from "@/components/toast";
+import { Alert, Button, Card, Empty, Field, PageHeader, Select, Tabs, TextArea, cx } from "@/components/ui";
+import { useChildren } from "@/lib/children";
 import { api, ApiError, Page } from "@/lib/api";
 import { toLocalInput, todayIso } from "@/lib/format";
 import { useSession } from "@/lib/session";
-import { BankQuestion, Student, Teacher } from "@/lib/types";
+import { BankQuestion, Teacher } from "@/lib/types";
 import { rows, useApi } from "@/lib/useApi";
 
 export default function QuizzesPage() {
@@ -31,7 +35,7 @@ export default function QuizzesPage() {
 function StudentQuizzes() {
   const [tab, setTab] = useState<"pending" | "upcoming" | "closed">("pending");
   return (
-    <Card title="Your quizzes">
+    <Card title="Your quizzes" icon={<Lightbulb aria-hidden />}>
       <Tabs value={tab} onChange={setTab} tabs={[{ key: "pending", label: "To take" }, { key: "upcoming", label: "Coming up" }, { key: "closed", label: "Finished" }]} />
       <QuizList
         key={tab}
@@ -43,23 +47,16 @@ function StudentQuizzes() {
 }
 
 function ParentQuizzes() {
-  const children = useApi<Student[]>("my-children");
-  const [child, setChild] = useState("");
-  const list = children.data ?? [];
-  const chosen = child || list[0]?.id;
-  if (!children.data) return null;
-  if (list.length === 0) return <Alert tone="info">No children are linked to your account yet.</Alert>;
+  const { list, chosen, choose, loading } = useChildren();
+  if (loading) return null;
+  if (!chosen) return <Empty title="No children linked yet">Ask the school office to link your child to your account.</Empty>;
   return (
-    <Card
-      title={list.length > 1 ? "Your children's quizzes" : `${list[0].name}'s quizzes`}
-      actions={list.length > 1 ? (
-        <Select label="Child" value={chosen} onChange={(e) => setChild(e.target.value)}>
-          {list.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </Select>
-      ) : undefined}
-    >
-      <QuizList key={chosen} query={`student=${chosen}`} student={chosen} empty="No quizzes yet." />
-    </Card>
+    <>
+      <ChildSwitcher items={list.map((c) => ({ id: c.id, name: c.name, detail: c.current_enrollment?.section_name }))} value={chosen.id} onChange={choose} />
+      <Card title={`${chosen.name}'s quizzes`} icon={<Lightbulb aria-hidden />} description="Scores show as soon as a quiz is handed in.">
+        <QuizList key={chosen.id} query={`student=${chosen.id}`} student={chosen.id} empty="No quizzes yet." />
+      </Card>
+    </>
   );
 }
 
@@ -67,7 +64,7 @@ function AdminQuizzes() {
   const sections = useStaffSections();
   const [section, setSection] = useState("");
   return (
-    <Card title="All quizzes" actions={
+    <Card title="All quizzes" icon={<Lightbulb aria-hidden />} actions={
       <Select label="Section" value={section} onChange={(e) => setSection(e.target.value)}>
         <option value="">All sections</option>
         {sections.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
@@ -86,7 +83,7 @@ function TeacherQuizzes() {
   return (
     <>
       <NewQuiz pairs={pairs} onCreated={() => setVersion((v) => v + 1)} />
-      <Card title="Your quizzes">
+      <Card title="Your quizzes" icon={<Lightbulb aria-hidden />}>
         <Tabs value={tab} onChange={setTab} tabs={[{ key: "open", label: "Open" }, { key: "upcoming", label: "Coming up" }, { key: "closed", label: "Closed" }]} />
         <QuizList key={`${tab}-${version}`} query={`mine=true&state=${tab}`} />
       </Card>
@@ -118,7 +115,7 @@ function NewQuiz({ pairs, onCreated }: { pairs: Teacher["teaches"]; onCreated: (
   const [showBank, setShowBank] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState(false);
+  const toast = useToast();
   const subject = pair.split("|")[1] ?? "";
 
   const update = (key: number, change: Partial<Draft>) => setItems((list) => list.map((d) => (d.key === key ? { ...d, ...change } : d)));
@@ -149,7 +146,8 @@ function NewQuiz({ pairs, onCreated }: { pairs: Teacher["teaches"]; onCreated: (
           closes_at: new Date(closesAt).toISOString(),
         },
       });
-      setTitle(""); setTopic(""); setItems([blank("mcq")]); setOpensAt(""); setClosesAt(defaultClose()); setDone(true); setOpen(false);
+      setTitle(""); setTopic(""); setItems([blank("mcq")]); setOpensAt(""); setClosesAt(defaultClose()); setOpen(false);
+      toast.success("Quiz saved. Students can take it from their home screen once it opens.");
       onCreated();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Could not save the quiz.");
@@ -161,14 +159,13 @@ function NewQuiz({ pairs, onCreated }: { pairs: Teacher["teaches"]; onCreated: (
   if (pairs.length === 0) return <Alert tone="info">You are not assigned to teach any subject yet, so you can&apos;t set quizzes.</Alert>;
   if (!open) {
     return (
-      <div className="space-y-3">
-        {done && <Alert tone="success">Quiz saved. Students can take it from their home screen once it opens.</Alert>}
-        <Button onClick={() => { setOpen(true); setDone(false); }}>New quiz</Button>
+      <div>
+        <Button onClick={() => setOpen(true)}><CirclePlus aria-hidden /> New quiz</Button>
       </div>
     );
   }
   return (
-    <Card title="New quiz" actions={<button className="text-sm text-soft" onClick={() => setOpen(false)}>Cancel</button>}>
+    <Card title="New quiz" icon={<CirclePlus aria-hidden />} className="animate-enter" actions={<Button variant="ghost" size="sm" onClick={() => setOpen(false)}>Cancel</Button>}>
       <form onSubmit={submit} className="space-y-4">
         {error && <Alert>{error}</Alert>}
         <div className="grid gap-3 sm:grid-cols-2">
@@ -190,14 +187,14 @@ function NewQuiz({ pairs, onCreated }: { pairs: Teacher["teaches"]; onCreated: (
           </div>
           <ol className="space-y-3">
             {items.map((d, i) => (
-              <li key={d.key} className="rounded-lg border border-line p-3">
+              <li key={d.key} className="animate-enter rounded-xl border border-line bg-muted/30 p-3.5">
                 <div className="mb-2 flex items-center justify-between gap-2 text-sm">
                   <span className="font-medium">Q{i + 1} · {d.bank ? "From your bank" : d.type === "mcq" ? "Multiple choice" : "True or false"}</span>
                   <div className="flex items-center gap-3">
                     <label className="flex items-center gap-1 text-xs text-soft">Marks
-                      <input type="number" min={1} max={100} value={d.marks} onChange={(e) => update(d.key, { marks: e.target.value })} className="w-14 rounded border border-line bg-surface px-2 py-1 text-ink" />
+                      <input type="number" min={1} max={100} value={d.marks} onChange={(e) => update(d.key, { marks: e.target.value })} className="h-9 w-16 rounded-lg border border-line bg-surface px-2 text-ink" />
                     </label>
-                    {items.length > 1 && <button type="button" className="text-xs text-red-600" onClick={() => remove(d.key)}>Remove</button>}
+                    {items.length > 1 && <button type="button" className="rounded-lg p-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-950" onClick={() => remove(d.key)} aria-label={`Remove question ${i + 1}`}><Trash2 className="size-4" aria-hidden /></button>}
                   </div>
                 </div>
                 {d.bank ? (
@@ -240,7 +237,7 @@ function QuestionEditor({ draft, onChange }: { draft: Draft; onChange: (c: Parti
         <legend className="mb-1 text-xs text-soft">Choices: tick the right one</legend>
         <div className="space-y-2">
           {draft.options.map((o, i) => (
-            <label key={i} className={cx("flex items-center gap-2 rounded-lg border px-2 py-1.5", draft.correct === i ? "border-green-500" : "border-line")}>
+            <label key={i} className={cx("flex items-center gap-2.5 rounded-xl border bg-surface px-3 py-1.5 transition", draft.correct === i ? "border-green-500 ring-2 ring-green-500/20" : "border-line")}>
               <input type="radio" name={`correct-${draft.key}`} checked={draft.correct === i} onChange={() => onChange({ correct: i })} aria-label={`Choice ${i + 1} is right`} />
               {draft.type === "mcq" ? (
                 <input
@@ -266,12 +263,12 @@ function QuestionBank({ subject, chosen, onPick }: { subject: string; chosen: Se
   const bank = useApi<Page<BankQuestion>>(`question-bank/?subject=${subject}${search ? `&search=${encodeURIComponent(search)}` : ""}`);
   const list = rows(bank.data);
   return (
-    <div className="mt-3 rounded-lg border border-line p-3">
+    <div className="mt-3 animate-enter rounded-xl border border-line p-3">
       <Field label="Search your questions" value={search} onChange={(e) => setSearch(e.target.value)} />
       {bank.data && list.length === 0 && <p className="mt-2 text-sm text-soft">Questions you write for this subject are saved here to reuse.</p>}
       <ul className="mt-2 max-h-72 space-y-2 overflow-y-auto">
         {list.map((q) => (
-          <li key={q.id} className="flex items-start justify-between gap-3 rounded border border-line p-2 text-sm">
+          <li key={q.id} className="flex items-start justify-between gap-3 rounded-xl border border-line p-3 text-sm">
             <div className="min-w-0">
               <div>{q.text}</div>
               <div className="text-xs text-soft">{q.topic_name ?? "No topic"} · answer: {q.options[q.correct_option]}</div>

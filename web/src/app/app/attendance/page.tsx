@@ -1,20 +1,23 @@
 "use client";
 
+import { CircleCheck, ClipboardCheck, TriangleAlert, UsersRound } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { Donut } from "@/components/charts";
 import { useStaffSections } from "@/components/sections";
-import { Alert, Badge, Button, Card, DataTable, Empty, Field, Loading, PageHeader, Select, Stat, Tabs, cx } from "@/components/ui";
-import { api, ApiError } from "@/lib/api";
+import { useToast } from "@/components/toast";
+import { Avatar, Badge, Button, Card, DataTable, Empty, ErrorState, Field, Loading, PageHeader, Progress, Select, Stat, StickyBar, Tabs, cx } from "@/components/ui";
+import { api } from "@/lib/api";
 import { pct, todayIso } from "@/lib/format";
 import { useSession } from "@/lib/session";
 import { AttendanceSheet, AttendanceStatus, AttendanceSummary } from "@/lib/types";
-import { useApi } from "@/lib/useApi";
+import { useApi, useDebounced } from "@/lib/useApi";
 
 const STATUS: { key: AttendanceStatus; label: string; short: string; tone: string }[] = [
-  { key: "present", label: "Present", short: "P", tone: "bg-green-600 text-white" },
-  { key: "absent", label: "Absent", short: "A", tone: "bg-red-600 text-white" },
-  { key: "late", label: "Late", short: "L", tone: "bg-amber-500 text-white" },
-  { key: "leave", label: "On leave", short: "Lv", tone: "bg-slate-500 text-white" },
+  { key: "present", label: "Present", short: "P", tone: "bg-green-600 text-white shadow-sm shadow-green-600/30" },
+  { key: "absent", label: "Absent", short: "A", tone: "bg-red-600 text-white shadow-sm shadow-red-600/30" },
+  { key: "late", label: "Late", short: "L", tone: "bg-amber-500 text-white shadow-sm shadow-amber-500/30" },
+  { key: "leave", label: "On leave", short: "Lv", tone: "bg-slate-500 text-white shadow-sm" },
 ];
 
 type Tab = "mark" | "today" | "month" | "low";
@@ -36,10 +39,12 @@ export default function AttendancePage() {
           { key: "low", label: "Below 75%" },
         ]}
       />
-      {tab === "mark" && <MarkSheet />}
-      {tab === "today" && <DailyReport />}
-      {tab === "month" && <MonthlyReport />}
-      {tab === "low" && <LowAttendance />}
+      <div key={tab} className="animate-enter">
+        {tab === "mark" && <MarkSheet />}
+        {tab === "today" && <DailyReport />}
+        {tab === "month" && <MonthlyReport />}
+        {tab === "low" && <LowAttendance />}
+      </div>
     </>
   );
 }
@@ -63,7 +68,7 @@ function MarkSheet() {
   const sheet = useApi<AttendanceSheet>(section ? `attendance/sheet?section=${section}&date=${date}` : null);
   const [draft, setDraft] = useState<Record<string, AttendanceStatus>>({});
   const [busy, setBusy] = useState(false);
-  const [notice, setNotice] = useState<{ tone: "success" | "error"; text: string } | null>(null);
+  const toast = useToast();
 
   useEffect(() => {
     // Start from what is saved whenever the section or date changes.
@@ -73,16 +78,15 @@ function MarkSheet() {
 
   const save = async () => {
     setBusy(true);
-    setNotice(null);
     try {
       const data = await api<AttendanceSheet>("attendance/sheet", {
         method: "POST",
         body: { section, date, records: Object.entries(draft).filter(([, s]) => s !== "present").map(([enrollment, status]) => ({ enrollment, status })) },
       });
       sheet.setData(data);
-      setNotice({ tone: "success", text: `Saved. ${data.summary.present + data.summary.late} of ${data.students.length} in class.` });
+      toast.success(`Attendance saved. ${data.summary.present + data.summary.late} of ${data.students.length} in class.`);
     } catch (e) {
-      setNotice({ tone: "error", text: e instanceof ApiError ? e.message : "Could not save." });
+      toast.error(e, "Could not save attendance. Your changes are still here; try again.");
     } finally {
       setBusy(false);
     }
@@ -90,31 +94,43 @@ function MarkSheet() {
 
   const students = sheet.data?.students ?? [];
   const counts = STATUS.map((s) => ({ ...s, n: students.filter((x) => (draft[x.enrollment] ?? x.status) === s.key).length }));
+  const changed = students.some((s) => (draft[s.enrollment] ?? s.status) !== s.status);
+  const inClass = counts[0].n + counts[2].n;
 
   return (
-    <Card>
+    <Card title="Mark attendance" icon={<ClipboardCheck aria-hidden />}>
       <div className="mb-4 grid gap-3 sm:grid-cols-3">
         <SectionPicker value={section} onChange={setSection} />
         <Field label="Date" type="date" value={date} max={todayIso()} onChange={(e) => setDate(e.target.value)} />
         <div className="flex items-end text-sm text-soft">
-          {sheet.data?.marked ? <span>Marked by {sheet.data.marked_by}</span> : sheet.data ? <Badge tone="warn">Not marked yet</Badge> : null}
+          {sheet.data?.marked ? <Badge tone="good" dot>Marked by {sheet.data.marked_by}</Badge> : sheet.data ? <Badge tone="warn" dot>Not marked yet</Badge> : null}
         </div>
       </div>
-      {notice && <div className="mb-3"><Alert tone={notice.tone}>{notice.text}</Alert></div>}
-      {sheet.error && <Alert>{sheet.error}</Alert>}
-      {!section ? <Empty>You have no sections to mark.</Empty> : sheet.loading && !sheet.data ? <Loading /> : students.length === 0 ? <Empty>No students in this section.</Empty> : (
+      {sheet.error && !sheet.data && <ErrorState message={sheet.error} onRetry={sheet.reload} />}
+      {!section ? <Empty icon={<UsersRound aria-hidden />}>You have no sections to mark.</Empty> : sheet.loading && !sheet.data ? <Loading rows={6} /> : sheet.data && students.length === 0 ? <Empty icon={<UsersRound aria-hidden />}>No students in this section.</Empty> : !sheet.data ? null : (
         <>
-          <p className="mb-3 flex flex-wrap gap-3 text-sm">
-            {counts.map((c) => <span key={c.key}><span className="font-semibold">{c.n}</span> <span className="text-soft">{c.label.toLowerCase()}</span></span>)}
-          </p>
-          <ul className="divide-y divide-line rounded-lg border border-line">
+          <div className="mb-4 rounded-xl bg-muted/50 p-3">
+            <div className="mb-2 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+              {counts.map((c) => (
+                <span key={c.key} className="flex items-center gap-1.5">
+                  <span className={cx("size-2.5 rounded-full", c.tone.split(" ")[0])} aria-hidden />
+                  <span className="font-semibold tabular-nums">{c.n}</span> <span className="text-soft">{c.label.toLowerCase()}</span>
+                </span>
+              ))}
+            </div>
+            <Progress value={students.length ? (inClass / students.length) * 100 : 0} tone={inClass / Math.max(1, students.length) < 0.75 ? "bad" : "good"} label="In class" />
+          </div>
+          <ul className="stagger divide-y divide-line overflow-hidden rounded-xl border border-line">
             {students.map((s) => {
               const current = draft[s.enrollment] ?? s.status;
               return (
-                <li key={s.enrollment} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
-                  <div className="min-w-0">
-                    <div className="truncate text-sm font-medium">{s.roll_no ? `${s.roll_no}. ` : ""}{s.name}</div>
-                    <div className="text-xs text-soft">Adm. {s.admission_no}</div>
+                <li key={s.enrollment} className={cx("flex flex-wrap items-center justify-between gap-2 px-3 py-2.5 transition-colors", current === "absent" && "bg-red-50/70 dark:bg-red-950/30", current === "late" && "bg-amber-50/70 dark:bg-amber-950/30")}>
+                  <div className="flex min-w-0 items-center gap-3">
+                    <Avatar name={s.name} size="sm" />
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-medium">{s.roll_no ? `${s.roll_no}. ` : ""}{s.name}</div>
+                      <div className="text-xs text-soft">Adm. {s.admission_no}</div>
+                    </div>
                   </div>
                   <div className="flex gap-1" role="radiogroup" aria-label={`Attendance for ${s.name}`}>
                     {STATUS.map((st) => (
@@ -124,7 +140,8 @@ function MarkSheet() {
                         aria-checked={current === st.key}
                         title={st.label}
                         onClick={() => setDraft((d) => ({ ...d, [s.enrollment]: st.key }))}
-                        className={cx("h-10 min-w-10 rounded-lg px-2 text-sm font-semibold", current === st.key ? st.tone : "border border-line text-soft")}
+                        aria-label={`${st.label}: ${s.name}`}
+                        className={cx("h-11 min-w-11 rounded-xl px-2 text-sm font-bold transition duration-150 active:scale-90", current === st.key ? `${st.tone} scale-105` : "border border-line bg-surface text-soft hover:border-soft/50 hover:text-ink")}
                       >
                         {st.short}
                       </button>
@@ -134,10 +151,11 @@ function MarkSheet() {
               );
             })}
           </ul>
-          <div className="sticky bottom-0 mt-4 flex gap-2 bg-surface py-2">
-            <Button onClick={save} busy={busy}>{sheet.data?.marked ? "Save changes" : "Save attendance"}</Button>
+          <StickyBar>
+            <Button onClick={save} busy={busy}><CircleCheck aria-hidden /> {sheet.data?.marked ? "Save changes" : "Save attendance"}</Button>
             <Button variant="ghost" onClick={() => setDraft(Object.fromEntries(students.map((s) => [s.enrollment, "present"])))}>Everyone present</Button>
-          </div>
+            {changed && <span className="ml-auto text-xs font-medium text-amber-700 dark:text-amber-300">Unsaved changes</span>}
+          </StickyBar>
         </>
       )}
     </Card>
@@ -152,15 +170,23 @@ function DailyReport() {
   return (
     <div className="space-y-4">
       <Field label="Date" type="date" value={date} max={todayIso()} onChange={(e) => setDate(e.target.value)} className="max-w-xs" />
-      {!report.data ? <Loading /> : (
+      {report.error && !report.data ? <ErrorState message={report.error} onRetry={report.reload} /> : !report.data ? <Loading variant="stats" /> : (
         <>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <Stat label="Attendance" value={pct(report.data.total.percentage)} />
+          <div className="stagger grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <Stat label="Attendance" value={pct(report.data.total.percentage)} progress={report.data.total.percentage} />
             <Stat label="Absent" value={report.data.total.absent} tone={report.data.total.absent ? "bad" : undefined} />
             <Stat label="Late" value={report.data.total.late} />
             <Stat label="Sections not marked" value={report.data.unmarked_sections} tone={report.data.unmarked_sections ? "warn" : "good"} />
           </div>
-          <Card>
+          <Card title="By section" icon={<ClipboardCheck aria-hidden />}>
+            <div className="mb-5">
+              <Donut segments={[
+                { label: "Present", value: report.data.total.present, tone: "good" },
+                { label: "Late", value: report.data.total.late, tone: "warn" },
+                { label: "Absent", value: report.data.total.absent, tone: "bad" },
+                { label: "On leave", value: report.data.total.leave, tone: "neutral" },
+              ]} centre={<span className="text-base font-bold tabular-nums">{pct(report.data.total.percentage)}</span>} />
+            </div>
             <DataTable
               rows={report.data.sections}
               rowKey={(r) => r.section}
@@ -192,18 +218,19 @@ function MonthlyReport() {
         <SectionPicker value={section} onChange={setSection} />
         <Field label="Month" type="month" value={month} onChange={(e) => setMonth(e.target.value)} />
       </div>
-      {!report.data ? <Loading /> : <StudentTable rows={report.data.students} />}
+      {report.error && !report.data ? <ErrorState message={report.error} onRetry={report.reload} /> : !report.data ? <Loading variant="table" /> : <StudentTable rows={report.data.students} />}
     </Card>
   );
 }
 
 function LowAttendance() {
   const [threshold, setThreshold] = useState("75");
-  const report = useApi<{ students: StudentRow[] }>(`attendance/reports/low?threshold=${encodeURIComponent(threshold || "75")}`);
+  const settled = useDebounced(threshold, 400);
+  const report = useApi<{ students: StudentRow[] }>(`attendance/reports/low?threshold=${encodeURIComponent(settled || "75")}`);
   return (
-    <Card>
+    <Card title="Low attendance this year" icon={<TriangleAlert aria-hidden />}>
       <Field label="Below (%)" type="number" min={1} max={100} value={threshold} onChange={(e) => setThreshold(e.target.value)} className="mb-4 max-w-40" />
-      {!report.data ? <Loading /> : report.data.students.length === 0 ? <Empty>No students are under {threshold}% this year.</Empty> : <StudentTable rows={report.data.students} showSection />}
+      {report.error && !report.data ? <ErrorState message={report.error} onRetry={report.reload} /> : !report.data ? <Loading variant="table" /> : report.data.students.length === 0 ? <Empty icon={<CircleCheck aria-hidden />} title="Everyone is above the line">No students are under {threshold}% this year.</Empty> : <StudentTable rows={report.data.students} showSection />}
     </Card>
   );
 }
@@ -214,7 +241,7 @@ function StudentTable({ rows, showSection }: { rows: StudentRow[]; showSection?:
       rows={rows}
       rowKey={(r) => r.student}
       columns={[
-        { header: "Student", cell: (r) => <Link className="text-brand" href={`/app/students/${r.student}`}>{r.roll_no ? `${r.roll_no}. ` : ""}{r.name}</Link> },
+        { header: "Student", cell: (r) => <Link className="font-medium text-brand hover:underline" href={`/app/students/${r.student}`}>{r.roll_no ? `${r.roll_no}. ` : ""}{r.name}</Link> },
         ...(showSection ? [{ header: "Section", cell: (r: StudentRow) => r.section_name }] : []),
         { header: "Days", cell: (r) => r.marked_days },
         { header: "Absent", cell: (r) => r.absent },

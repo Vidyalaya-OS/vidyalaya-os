@@ -1,14 +1,18 @@
 "use client";
 
+import { Award, BookOpen, CalendarDays, CircleCheck, ClipboardCheck, Clock, Lightbulb, TrendingUp, Wallet } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { BarList, Ring } from "@/components/charts";
 import { scoreText } from "@/components/QuizList";
-import { Badge, ButtonLink, Card, Empty, Loading, Stat, Tabs } from "@/components/ui";
-import { formatDate, formatDateTime, money, num, pct, shortTime } from "@/lib/format";
-import { AttendanceStatus, ChildSummary, DashHomework, DashQuizzes, DashTests, StudentDashboard as StudentData } from "@/lib/types";
+import { Schedule } from "@/components/Schedule";
+import { QuickActions } from "@/components/StaffHome";
+import { Async, Avatar, Badge, ButtonLink, Card, Empty, Loading, Progress, Stat, cx } from "@/components/ui";
+import { useChildren } from "@/lib/children";
+import { formatDate, formatDateTime, money, num, pct } from "@/lib/format";
+import { AttendanceStatus, ChildSummary, DashAttendance, DashHomework, DashQuizzes, DashTests, StudentDashboard as StudentData } from "@/lib/types";
 import { useApi } from "@/lib/useApi";
 
-const ATTENDANCE: Record<AttendanceStatus, { label: string; tone: "good" | "warn" | "bad" | "neutral" }> = {
+export const ATTENDANCE: Record<AttendanceStatus, { label: string; tone: "good" | "warn" | "bad" | "neutral" }> = {
   present: { label: "Present", tone: "good" },
   late: { label: "Late", tone: "warn" },
   absent: { label: "Absent", tone: "bad" },
@@ -16,96 +20,100 @@ const ATTENDANCE: Record<AttendanceStatus, { label: string; tone: "good" | "warn
 };
 
 function attendanceTone(p: number | null) {
-  return p == null ? undefined : p < 75 ? "bad" : "good";
+  return p == null ? undefined : p < 75 ? "bad" : p < 90 ? "warn" : "good";
 }
 
 function ViewAll({ href, children = "See all" }: { href: string; children?: React.ReactNode }) {
-  return <Link href={href} className="text-sm font-medium text-brand">{children}</Link>;
+  return <Link href={href} className="text-sm font-medium text-brand hover:underline">{children}</Link>;
 }
 
 /** The student's first screen: today's classes, quizzes to take, homework due and latest results. */
 export function StudentDashboard() {
   const dash = useApi<StudentData>("dashboard/student");
-  if (dash.error) return <p className="text-sm text-red-600">{dash.error}</p>;
-  if (!dash.data) return <Loading />;
-  const d = dash.data;
-  const today = d.attendance.today ? ATTENDANCE[d.attendance.today] : null;
   return (
-    <div className="space-y-5">
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat label="Quizzes to take" value={d.quizzes.pending.length} tone={d.quizzes.pending.length ? "warn" : undefined} />
-        <Stat label="Homework pending" value={d.homework.pending + d.homework.overdue} tone={d.homework.overdue ? "bad" : undefined} hint={d.homework.overdue ? `${d.homework.overdue} overdue` : undefined} />
-        <Stat label="Attendance this month" value={pct(d.attendance.month_summary.percentage)} tone={attendanceTone(d.attendance.month_summary.percentage)} />
-        <Stat label="Attendance this year" value={pct(d.attendance.year_summary.percentage)} tone={attendanceTone(d.attendance.year_summary.percentage)} />
-      </div>
+    <Async state={dash} loading={<><Loading variant="stats" /><div className="mt-5"><Loading variant="cards" /></div></>}>
+      {(d) => (
+        <div className="space-y-6">
+          <div className="stagger grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <Stat label="Quizzes to take" value={d.quizzes.pending.length} icon={<Lightbulb aria-hidden />} tone={d.quizzes.pending.length ? "warn" : undefined} href="/app/quizzes" />
+            <Stat label="Homework pending" value={d.homework.pending + d.homework.overdue} icon={<BookOpen aria-hidden />} tone={d.homework.overdue ? "bad" : undefined} hint={d.homework.overdue ? `${d.homework.overdue} overdue` : "On track"} href="/app/homework" />
+            <Stat label="Attendance this month" value={pct(d.attendance.month_summary.percentage)} icon={<ClipboardCheck aria-hidden />} tone={attendanceTone(d.attendance.month_summary.percentage)} progress={d.attendance.month_summary.percentage} href="/app/my/attendance" />
+            <Stat label="Attendance this year" value={pct(d.attendance.year_summary.percentage)} icon={<CalendarDays aria-hidden />} tone={attendanceTone(d.attendance.year_summary.percentage)} progress={d.attendance.year_summary.percentage} href="/app/my/attendance" />
+          </div>
 
-      <div className="grid gap-5 lg:grid-cols-2">
-        <Card title={`Today, ${d.day_name}`} actions={today ? <Badge tone={today.tone}>{today.label}</Badge> : <ViewAll href="/app/timetable">Week</ViewAll>}>
-          {d.timetable.length === 0 ? (
-            <Empty>No classes today.</Empty>
-          ) : (
-            <ol className="divide-y divide-line">
-              {d.timetable.map((t) => (
-                <li key={t.id} className="flex items-center gap-3 py-2 text-sm">
-                  <span className="w-24 shrink-0 tabular-nums text-soft">{shortTime(t.start_time)}–{shortTime(t.end_time)}</span>
-                  <span className="min-w-0 flex-1">
-                    <span className="font-medium">{t.subject_name}</span>
-                    <span className="block truncate text-xs text-soft">{[t.period_name, t.teacher_name, t.room && `Room ${t.room}`].filter(Boolean).join(" · ")}</span>
-                  </span>
-                </li>
-              ))}
-            </ol>
-          )}
-        </Card>
+          <div className="grid gap-5 lg:grid-cols-2">
+            <Card
+              title={`Today, ${d.day_name}`}
+              icon={<Clock aria-hidden />}
+              actions={d.attendance.today ? <Badge tone={ATTENDANCE[d.attendance.today].tone} dot>{ATTENDANCE[d.attendance.today].label}</Badge> : <ViewAll href="/app/timetable">Week</ViewAll>}
+            >
+              {d.timetable.length === 0 ? (
+                <Empty icon={<CalendarDays aria-hidden />}>No classes today.</Empty>
+              ) : (
+                <Schedule slots={d.timetable.map((t) => ({ id: t.id, start: t.start_time, end: t.end_time, title: t.subject_name, detail: [t.period_name, t.teacher_name, t.room && `Room ${t.room}`].filter(Boolean).join(" · ") }))} />
+              )}
+            </Card>
+            <QuizzesCard quizzes={d.quizzes} canTake />
+            <HomeworkCard homework={d.homework} href="/app/homework" />
+            <TestsCard tests={d.tests} studentId={d.student.id} />
+          </div>
 
-        <QuizzesCard quizzes={d.quizzes} canTake />
-        <HomeworkCard homework={d.homework} href="/app/homework" />
-        <TestsCard tests={d.tests} studentId={d.student.id} />
-      </div>
-      <div className="flex flex-wrap gap-2">
-        <ButtonLink href={`/app/students/${d.student.id}`} variant="secondary">Attendance calendar and all results</ButtonLink>
-        <ButtonLink href={`/app/fees/students/${d.student.id}`} variant="secondary">Fees</ButtonLink>
-      </div>
-    </div>
+          <QuickActions actions={[
+            { href: "/app/calendar", label: "Calendar", icon: <CalendarDays aria-hidden />, hint: "Due dates and tests" },
+            { href: "/app/timetable", label: "Timetable", icon: <Clock aria-hidden /> },
+            { href: "/app/my/attendance", label: "Attendance", icon: <ClipboardCheck aria-hidden /> },
+            { href: "/app/my/results", label: "Results", icon: <TrendingUp aria-hidden /> },
+            { href: "/app/my/fees", label: "Fees", icon: <Wallet aria-hidden /> },
+            { href: "/app/quizzes", label: "Quizzes", icon: <Lightbulb aria-hidden /> },
+          ]} />
+        </div>
+      )}
+    </Async>
   );
 }
 
 function QuizzesCard({ quizzes, canTake, student }: { quizzes: DashQuizzes; canTake?: boolean; student?: string }) {
   const suffix = student ? `?student=${student}` : "";
   return (
-    <Card title="Quizzes" actions={<ViewAll href="/app/quizzes" />}>
+    <Card title="Quizzes" icon={<Lightbulb aria-hidden />} actions={<ViewAll href="/app/quizzes" />}>
       {quizzes.pending.length > 0 && (
-        <ul className="mb-3 space-y-2">
+        <ul className="mb-4 space-y-2">
           {quizzes.pending.map((q) => (
-            <li key={q.id} className="flex items-center justify-between gap-3 rounded-lg border border-amber-300 p-3 text-sm dark:border-amber-800">
+            <li key={q.id} className="flex items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50/60 p-3 dark:border-amber-800 dark:bg-amber-950/30">
               <div className="min-w-0">
-                <div className="font-medium">{q.title}</div>
+                <div className="truncate font-medium">{q.title}</div>
                 <div className="text-xs text-soft">{q.subject_name} · {q.question_count} questions · closes {formatDateTime(q.closes_at)}</div>
               </div>
-              <span className="shrink-0 whitespace-nowrap">{canTake ? <ButtonLink href={`/app/quizzes/${q.id}`}>Take quiz</ButtonLink> : <Badge tone="warn">Not taken yet</Badge>}</span>
+              <span className="shrink-0">{canTake ? <ButtonLink href={`/app/quizzes/${q.id}`} size="sm">Take quiz</ButtonLink> : <Badge tone="warn">Not taken yet</Badge>}</span>
             </li>
           ))}
         </ul>
       )}
       {quizzes.recent_scores.length > 0 ? (
         <>
-          <div className="mb-1 text-xs uppercase tracking-wide text-soft">Recent scores</div>
-          <ul className="divide-y divide-line">
-            {quizzes.recent_scores.map((q) => (
-              <li key={q.id}>
-                <Link href={`/app/quizzes/${q.id}${suffix}`} className="flex items-center justify-between gap-3 py-2 text-sm hover:text-brand">
-                  <span className="min-w-0 truncate">{q.title} <span className="text-soft">· {q.subject_name}</span></span>
-                  <span className="shrink-0 font-semibold tabular-nums">{scoreText(q.score, q.max_score)}</span>
-                </Link>
-              </li>
-            ))}
+          <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-soft">Recent scores</div>
+          <ul className="space-y-1">
+            {quizzes.recent_scores.map((q) => {
+              const p = q.max_score ? (q.score / q.max_score) * 100 : 0;
+              return (
+                <li key={q.id}>
+                  <Link href={`/app/quizzes/${q.id}${suffix}`} className="block rounded-lg px-1 py-2 transition hover:bg-muted">
+                    <div className="flex items-center justify-between gap-3 text-sm">
+                      <span className="min-w-0 truncate">{q.title} <span className="text-soft">· {q.subject_name}</span></span>
+                      <span className="shrink-0 font-semibold tabular-nums">{scoreText(q.score, q.max_score)}</span>
+                    </div>
+                    <Progress value={p} tone={p >= 75 ? "good" : p >= 40 ? "warn" : "bad"} className="mt-1.5 h-1.5" label={`${q.title} score`} />
+                  </Link>
+                </li>
+              );
+            })}
           </ul>
         </>
       ) : quizzes.pending.length === 0 ? (
-        <Empty>No quizzes yet.</Empty>
+        <Empty icon={<Lightbulb aria-hidden />}>No quizzes yet.</Empty>
       ) : null}
       {quizzes.upcoming.length > 0 && (
-        <p className="mt-2 text-xs text-soft">Coming up: {quizzes.upcoming.map((q) => `${q.title} (opens ${formatDateTime(q.opens_at)})`).join(", ")}</p>
+        <p className="mt-3 text-xs text-soft">Coming up: {quizzes.upcoming.map((q) => `${q.title} (opens ${formatDateTime(q.opens_at)})`).join(", ")}</p>
       )}
     </Card>
   );
@@ -113,13 +121,13 @@ function QuizzesCard({ quizzes, canTake, student }: { quizzes: DashQuizzes; canT
 
 function HomeworkCard({ homework, href }: { homework: DashHomework; href: string }) {
   return (
-    <Card title="Homework due" actions={<ViewAll href={href} />}>
+    <Card title="Homework due" icon={<BookOpen aria-hidden />} actions={<ViewAll href={href} />}>
       {homework.items.length === 0 ? (
-        <Empty>Nothing due this week.</Empty>
+        <Empty icon={<CircleCheck aria-hidden />}>Nothing due this week.</Empty>
       ) : (
         <ul className="divide-y divide-line">
           {homework.items.map((h) => (
-            <li key={h.id} className="flex items-center justify-between gap-3 py-2 text-sm">
+            <li key={h.id} className="flex items-center justify-between gap-3 py-2.5">
               <span className="min-w-0">
                 <span className="block truncate font-medium">{h.title}</span>
                 <span className="text-xs text-soft">{h.subject_name}</span>
@@ -136,32 +144,28 @@ function HomeworkCard({ homework, href }: { homework: DashHomework; href: string
   );
 }
 
-function TestsCard({ tests, studentId }: { tests: DashTests; studentId: string }) {
+function TestsCard({ tests, studentId, resultsHref = "/app/my/results" }: { tests: DashTests; studentId: string; resultsHref?: string }) {
   return (
-    <Card title="Latest test results" actions={<ViewAll href={`/app/students/${studentId}`} />}>
+    <Card title="Latest test results" icon={<TrendingUp aria-hidden />} actions={<ViewAll href={resultsHref} />}>
       {tests.latest.length === 0 ? (
-        <Empty>No results are published yet.</Empty>
+        <Empty icon={<TrendingUp aria-hidden />}>No results are published yet.</Empty>
       ) : (
-        <ul className="divide-y divide-line">
-          {tests.latest.map((t) => (
-            <li key={t.exam} className="flex items-center justify-between gap-3 py-2 text-sm">
-              <span className="min-w-0">
-                <span className="block font-medium">{t.subject_name}</span>
-                <span className="text-xs text-soft">{t.exam_term_name}{t.class_average != null ? ` · class average ${t.class_average}` : ""}</span>
-              </span>
-              <span className="shrink-0 text-right">
-                <span className="font-semibold tabular-nums">{t.is_absent ? "Absent" : `${num(t.marks_obtained)} / ${num(t.max_marks)}`}</span>
-                {t.grade && <span className="ml-2"><Badge tone="good">{t.grade}</Badge></span>}
-              </span>
-            </li>
-          ))}
-        </ul>
+        <BarList
+          valueLabel="Score"
+          compareLabel="Class average"
+          items={tests.latest.map((t) => ({
+            label: `${t.subject_name} · ${t.exam_term_name}`,
+            value: t.is_absent ? null : t.percentage,
+            compare: t.class_average != null && Number(t.max_marks) ? (t.class_average / Number(t.max_marks)) * 100 : null,
+            note: t.is_absent ? "Absent" : `${num(t.marks_obtained)} / ${num(t.max_marks)}${t.grade ? ` · ${t.grade}` : ""}`,
+          }))}
+        />
       )}
       {tests.report_cards.length > 0 && (
-        <div className="mt-3 flex flex-wrap gap-2">
+        <div className="mt-4 flex flex-wrap gap-2">
           {tests.report_cards.map((c) => (
-            <Link key={c.exam_term} href={`/app/report-cards/${studentId}/${c.exam_term}`} className="rounded-lg border border-line px-3 py-1.5 text-sm text-brand hover:bg-muted">
-              Report card: {c.exam_term_name}
+            <Link key={c.exam_term} href={`/app/report-cards/${studentId}/${c.exam_term}`} className="inline-flex min-h-9 items-center gap-1.5 rounded-xl border border-line px-3 text-sm font-medium text-brand transition hover:border-brand/40 hover:bg-brand-soft">
+              <Award className="size-4" aria-hidden /> Report card: {c.exam_term_name}
             </Link>
           ))}
         </div>
@@ -170,64 +174,142 @@ function TestsCard({ tests, studentId }: { tests: DashTests; studentId: string }
   );
 }
 
-/** The parent's first screen: one tab per child with attendance, homework, marks, quizzes and fees. */
+/** Chips with each child's name, to choose whose details are shown. */
+export function ChildSwitcher({ items, value, onChange }: { items: { id: string; name: string; detail?: string | null }[]; value: string; onChange: (id: string) => void }) {
+  if (items.length < 2) return null;
+  return (
+    <div role="radiogroup" aria-label="Choose a child" className="scrollbar-none -mx-1 mb-5 flex gap-2 overflow-x-auto px-1 pb-1">
+      {items.map((c) => {
+        const active = c.id === value;
+        return (
+          <button
+            key={c.id}
+            role="radio"
+            aria-checked={active}
+            onClick={() => onChange(c.id)}
+            className={cx(
+              "flex shrink-0 items-center gap-2.5 rounded-2xl border py-2 pl-2 pr-4 text-left transition duration-200 active:scale-[0.98]",
+              active ? "border-brand bg-brand-soft shadow-sm" : "border-line bg-surface hover:border-brand/40",
+            )}
+          >
+            <Avatar name={c.name} size="sm" />
+            <span>
+              <span className={cx("block text-sm font-semibold leading-tight", active && "text-brand")}>{c.name}</span>
+              {c.detail && <span className="block text-xs text-soft">{c.detail}</span>}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** The parent's first screen: for the chosen child, attendance, homework, marks, quizzes and fees. */
 export function ParentDashboard() {
   const dash = useApi<{ children: ChildSummary[] }>("dashboard/parent");
-  const [chosen, setChosen] = useState("");
-  if (dash.error) return <p className="text-sm text-red-600">{dash.error}</p>;
-  if (!dash.data) return <Loading />;
-  const children = dash.data.children;
-  if (children.length === 0) return <Card title="Your children"><Empty>No children are linked to your account yet. Ask the school office.</Empty></Card>;
-  const child = children.find((c) => c.student.id === chosen) ?? children[0];
+  const { chosen, choose } = useChildren();
   return (
-    <div>
-      {children.length > 1 && (
-        <Tabs value={child.student.id} onChange={setChosen} tabs={children.map((c) => ({ key: c.student.id, label: c.student.name }))} />
-      )}
-      <ChildPanel child={child} />
+    <Async
+      state={dash}
+      loading={<><Loading variant="stats" /><div className="mt-5"><Loading variant="cards" /></div></>}
+      isEmpty={(d) => d.children.length === 0}
+      empty={<Empty title="No children linked yet">Ask the school office to link your child to your account.</Empty>}
+    >
+      {(d) => {
+        const child = d.children.find((c) => c.student.id === chosen?.id) ?? d.children[0];
+        return (
+          <div>
+            <ChildSwitcher
+              items={d.children.map((c) => ({ id: c.student.id, name: c.student.name, detail: c.student.section_name }))}
+              value={child.student.id}
+              onChange={choose}
+            />
+            <ChildPanel key={child.student.id} child={child} />
+          </div>
+        );
+      }}
+    </Async>
+  );
+}
+
+function AttendanceHero({ a, name }: { a: DashAttendance; name: string }) {
+  const today = a.today ? ATTENDANCE[a.today] : null;
+  return (
+    <div className="flex items-center gap-4">
+      <Ring value={a.month_summary.percentage} label="this month" tone={attendanceTone(a.month_summary.percentage)} />
+      <div className="min-w-0 text-sm">
+        <div className="font-semibold">{today ? `${name.split(" ")[0]} is ${today.label.toLowerCase()} today` : "Today's attendance is not marked yet"}</div>
+        <div className="mt-1 text-soft">{a.month_summary.absent} absent and {a.month_summary.late} late this month</div>
+        <div className="text-soft">This year: {pct(a.year_summary.percentage)}</div>
+      </div>
     </div>
   );
 }
 
 function ChildPanel({ child }: { child: ChildSummary }) {
   const s = child.student;
-  const today = child.attendance.today ? ATTENDANCE[child.attendance.today] : null;
   const fees = child.fees;
-  const remaining = fees ? Number(fees.remaining) : 0;
+  const billed = fees ? Number(fees.due) - Number(fees.discount) : 0;
+  const paidPct = fees && billed > 0 ? (Number(fees.paid) / billed) * 100 : null;
   return (
-    <div className="space-y-5">
-      <div>
-        <h2 className="text-lg font-semibold">{s.name}</h2>
-        <p className="text-sm text-soft">{s.section_name ?? "No class yet"}{s.roll_no != null ? ` · Roll ${s.roll_no}` : ""} · Adm. {s.admission_no}{s.class_teacher ? ` · Class teacher ${s.class_teacher}` : ""}</p>
+    <div className="space-y-6">
+      <div className="flex animate-enter items-center gap-4 rounded-2xl border border-line bg-gradient-to-br from-brand-soft to-surface p-4 shadow-[var(--shadow-card)] sm:p-5">
+        <Avatar name={s.name} size="lg" />
+        <div className="min-w-0">
+          <h2 className="truncate text-xl font-bold">{s.name}</h2>
+          <p className="text-sm text-soft">{s.section_name ?? "No class yet"}{s.roll_no != null ? ` · Roll ${s.roll_no}` : ""} · Adm. {s.admission_no}</p>
+          {s.class_teacher && <p className="text-sm text-soft">Class teacher: {s.class_teacher}</p>}
+        </div>
       </div>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat label="Today" value={today ? today.label : "Not marked"} tone={today?.tone === "neutral" ? undefined : today?.tone} />
-        <Stat label="Attendance this month" value={pct(child.attendance.month_summary.percentage)} tone={attendanceTone(child.attendance.month_summary.percentage)}
-          hint={`${child.attendance.month_summary.absent} absent · year ${pct(child.attendance.year_summary.percentage)}`} />
-        <Stat label="Fees paid" value={fees ? money(fees.paid, child.currency) : "-"} tone={fees ? "good" : undefined} hint={fees ? `of ${money(Number(fees.due) - Number(fees.discount), child.currency)}` : undefined} />
-        <Stat label="Fees remaining" value={fees ? money(fees.remaining, child.currency) : "-"} tone={fees && Number(fees.overdue) > 0 ? "bad" : remaining > 0 ? "warn" : fees ? "good" : undefined}
-          hint={fees && Number(fees.overdue) > 0 ? `${money(fees.overdue, child.currency)} overdue` : fees?.next_due ? `Next: ${money(fees.next_due.remaining, child.currency)} by ${formatDate(fees.next_due.due_date)}` : undefined} />
+
+      <div className="stagger grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Stat label="Homework pending" value={child.homework.pending + child.homework.overdue} icon={<BookOpen aria-hidden />} tone={child.homework.overdue ? "bad" : undefined} hint={child.homework.overdue ? `${child.homework.overdue} overdue` : undefined} href="/app/homework" />
+        <Stat label="Quizzes not taken" value={child.quizzes.pending.length} icon={<Lightbulb aria-hidden />} tone={child.quizzes.pending.length ? "warn" : undefined} href="/app/quizzes" />
+        <Stat label="Fees paid" value={fees ? money(fees.paid, child.currency) : "-"} icon={<Wallet aria-hidden />} tone={fees ? "good" : undefined} progress={paidPct} hint={fees ? `of ${money(billed, child.currency)}` : undefined} href="/app/my/fees" />
+        <Stat
+          label="Fees remaining"
+          value={fees ? money(fees.remaining, child.currency) : "-"}
+          icon={<Wallet aria-hidden />}
+          tone={fees && Number(fees.overdue) > 0 ? "bad" : fees && Number(fees.remaining) > 0 ? "warn" : fees ? "good" : undefined}
+          hint={fees && Number(fees.overdue) > 0 ? `${money(fees.overdue, child.currency)} overdue` : fees?.next_due ? `Next: ${money(fees.next_due.remaining, child.currency)} by ${formatDate(fees.next_due.due_date)}` : undefined}
+          href="/app/my/fees"
+        />
       </div>
+
       <div className="grid gap-5 lg:grid-cols-2">
+        <Card title="Attendance" icon={<ClipboardCheck aria-hidden />} actions={<ViewAll href="/app/my/attendance">Calendar</ViewAll>}>
+          <AttendanceHero a={child.attendance} name={s.name} />
+        </Card>
         <HomeworkCard homework={child.homework} href="/app/homework" />
         <TestsCard tests={child.tests} studentId={s.id} />
         <QuizzesCard quizzes={child.quizzes} student={s.id} />
-        <Card title="Fees" actions={<ViewAll href={`/app/fees/students/${s.id}`}>Statement and receipts</ViewAll>}>
+        <Card title="Fees" icon={<Wallet aria-hidden />} actions={<ViewAll href="/app/my/fees">Statement and receipts</ViewAll>} className="lg:col-span-2">
           {!fees ? (
             <Empty>Fees for this year are not set up yet.</Empty>
           ) : (
-            <dl className="grid grid-cols-2 gap-3 text-sm">
-              <div><dt className="text-soft">Total for {fees.academic_year_name}</dt><dd className="font-medium tabular-nums">{money(fees.due, child.currency)}</dd></div>
-              {Number(fees.discount) > 0 && <div><dt className="text-soft">Discount</dt><dd className="font-medium tabular-nums">{money(fees.discount, child.currency)}</dd></div>}
-              <div><dt className="text-soft">Paid</dt><dd className="font-medium tabular-nums text-green-700 dark:text-green-300">{money(fees.paid, child.currency)}</dd></div>
-              <div><dt className="text-soft">Remaining</dt><dd className="font-medium tabular-nums">{money(fees.remaining, child.currency)}</dd></div>
-              {Number(fees.overdue) > 0 && <div><dt className="text-soft">Overdue</dt><dd className="font-medium tabular-nums text-red-700 dark:text-red-300">{money(fees.overdue, child.currency)}</dd></div>}
-              {fees.next_due && <div className="col-span-2"><dt className="text-soft">Next due</dt><dd className="font-medium">{fees.next_due.name}: {money(fees.next_due.remaining, child.currency)} by {formatDate(fees.next_due.due_date)}</dd></div>}
-            </dl>
+            <div className="space-y-4">
+              <div>
+                <div className="mb-1.5 flex justify-between text-sm">
+                  <span className="text-soft">Paid for {fees.academic_year_name}</span>
+                  <span className="font-semibold tabular-nums">{paidPct == null ? "-" : `${Math.round(paidPct)}%`}</span>
+                </div>
+                <Progress value={paidPct ?? 0} tone={Number(fees.overdue) > 0 ? "bad" : "good"} className="h-3" label="Fees paid" />
+              </div>
+              <dl className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+                <div><dt className="text-soft">Total</dt><dd className="font-semibold tabular-nums">{money(fees.due, child.currency)}</dd></div>
+                <div><dt className="text-soft">Paid</dt><dd className="font-semibold tabular-nums text-green-700 dark:text-green-300">{money(fees.paid, child.currency)}</dd></div>
+                <div><dt className="text-soft">Remaining</dt><dd className="font-semibold tabular-nums">{money(fees.remaining, child.currency)}</dd></div>
+                <div><dt className="text-soft">Overdue</dt><dd className={cx("font-semibold tabular-nums", Number(fees.overdue) > 0 && "text-red-700 dark:text-red-300")}>{money(fees.overdue, child.currency)}</dd></div>
+              </dl>
+              {fees.next_due && <Alert>Next due: <b>{fees.next_due.name}</b>, {money(fees.next_due.remaining, child.currency)} by {formatDate(fees.next_due.due_date)}.</Alert>}
+            </div>
           )}
         </Card>
       </div>
-      <ButtonLink href={`/app/students/${s.id}`} variant="secondary">Attendance calendar and all results</ButtonLink>
     </div>
   );
+}
+
+function Alert({ children }: { children: React.ReactNode }) {
+  return <p className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950/50 dark:text-amber-100">{children}</p>;
 }
