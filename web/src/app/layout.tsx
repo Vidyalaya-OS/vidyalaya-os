@@ -13,9 +13,9 @@ export const metadata: Metadata = {
   description: "One place for schools, teachers, students and parents: timetable, attendance, homework, tests, report cards, quizzes and fees.",
   applicationName: "School Management System",
   manifest: "/manifest.webmanifest",
-  appleWebApp: { capable: true, title: "School", statusBarStyle: "default" },
+  appleWebApp: { capable: true, title: "SMS", statusBarStyle: "default" },
   formatDetection: { telephone: false },
-  icons: { icon: "/favicon.ico", apple: "/apple-icon.png" },
+  icons: { icon: [{ url: "/favicon.ico" }, { url: "/logo.svg", type: "image/svg+xml" }], apple: "/apple-icon.png" },
   // Signed-in screens hold private school data; only the login page is meant to be found.
   robots: { index: false, follow: false },
 };

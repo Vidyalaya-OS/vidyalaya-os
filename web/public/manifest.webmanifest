@@ -1,8 +1,8 @@
 {
   "name": "School Management System",
-  "short_name": "School",
+  "short_name": "SMS",
   "description": "Attendance, timetable, homework, quizzes, marks, report cards and fees for every school, teacher, student and parent.",
-  "start_url": "/app",
+  "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "any",
