@@ -36,6 +36,12 @@ export default function MarksPage() {
   const max = Number(exam.max_marks);
 
   const save = async () => {
+    // Catch obvious slips here instead of a round trip to the server.
+    const bad = Object.entries(draft).filter(([, d]) => !d.absent && d.marks !== "" && (Number(d.marks) < 0 || Number(d.marks) > max || Number.isNaN(Number(d.marks))));
+    if (bad.length) {
+      setNotice(`${bad.length} mark${bad.length === 1 ? " is" : "s are"} outside 0 to ${num(exam.max_marks)}. They are shown in red.`);
+      return;
+    }
     setBusy(true);
     setNotice(null);
     setRowErrors({});
@@ -88,12 +94,12 @@ export default function MarksPage() {
         <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line">
           {sheet.data.rows.map((r) => {
             const d = draft[r.enrollment] ?? { marks: "", absent: false, remark: "" };
-            const over = d.marks !== "" && Number(d.marks) > max;
+            const over = d.marks !== "" && (Number(d.marks) > max || Number(d.marks) < 0);
             return (
               <li key={r.enrollment} className={cx("flex flex-wrap items-center gap-3 px-3 py-2.5 transition-colors", (rowErrors[r.enrollment] || over) && "bg-red-50/60 dark:bg-red-950/30")}>
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-medium">{r.roll_no ? `${r.roll_no}. ` : ""}{r.name}</div>
-                  {(rowErrors[r.enrollment] || over) && <div className="text-xs font-medium text-red-600 dark:text-red-400" role="alert">{rowErrors[r.enrollment] ?? `Above ${num(exam.max_marks)}`}</div>}
+                  {(rowErrors[r.enrollment] || over) && <div className="text-xs font-medium text-red-600 dark:text-red-400" role="alert">{rowErrors[r.enrollment] ?? (Number(d.marks) < 0 ? "Can't be below 0" : `Above ${num(exam.max_marks)}`)}</div>}
                 </div>
                 <input
                   type="number"
@@ -104,6 +110,14 @@ export default function MarksPage() {
                   disabled={locked || d.absent}
                   value={d.absent ? "" : d.marks}
                   onChange={(e) => set(r.enrollment, { marks: e.target.value })}
+                  onKeyDown={(e) => {
+                    // Enter moves down the list, like a spreadsheet.
+                    if (e.key !== "Enter") return;
+                    e.preventDefault();
+                    const all = [...document.querySelectorAll<HTMLInputElement>("input[data-marks]:not(:disabled)")];
+                    all[all.indexOf(e.currentTarget) + 1]?.focus();
+                  }}
+                  data-marks
                   aria-label={`Marks for ${r.name}`}
                   className={cx("h-11 w-24 rounded-xl border bg-surface px-3 text-right text-base tabular-nums outline-none transition focus:border-brand focus:ring-4 focus:ring-[var(--ring)] disabled:bg-muted sm:text-sm", over || rowErrors[r.enrollment] ? "border-red-500" : "border-line")}
                 />

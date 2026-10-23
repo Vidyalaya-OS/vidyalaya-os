@@ -1,7 +1,9 @@
 "use client";
 
 import { useParams, useSearchParams } from "next/navigation";
-import { Suspense, useState } from "react";
+import { ChevronLeft, ChevronRight, PartyPopper, Send, Timer } from "lucide-react";
+import { Suspense, useCallback, useEffect, useState } from "react";
+import { Ring } from "@/components/charts";
 import { QuizStateBadge, scoreText } from "@/components/QuizList";
 import { useDialog } from "@/components/dialog";
 import { useToast } from "@/components/toast";
@@ -58,72 +60,175 @@ function Paper({ id, student }: { id: string; student: string | null }) {
   );
 }
 
+const LETTERS = ["A", "B", "C", "D", "E", "F"];
+
+/** Time left until a moment, like "2 h 5 min" or "45 s". */
+function timeLeft(until: string, now: number) {
+  const ms = new Date(until).getTime() - now;
+  if (ms <= 0) return "closed";
+  const m = Math.floor(ms / 60000);
+  if (m >= 60 * 24) return `${Math.floor(m / 1440)} d ${Math.floor((m % 1440) / 60)} h`;
+  if (m >= 60) return `${Math.floor(m / 60)} h ${m % 60} min`;
+  if (m >= 1) return `${m} min`;
+  return `${Math.floor(ms / 1000)} s`;
+}
+
+/** One question at a time, with a strip of numbered dots to jump around.
+ * Answers are kept in this tab while the student works, so a refresh does
+ * not lose them. Keys 1 to 4 (or A to D) choose, arrows move. */
 function TakeQuiz({ paper, onDone }: { paper: QuizPaper; onDone: () => void }) {
-  const [answers, setAnswers] = useState<Record<string, number>>({});
+  const draftKey = `sms.quiz.${paper.quiz.id}`;
+  const [answers, setAnswers] = useState<Record<string, number>>(() => {
+    try {
+      return JSON.parse(window.sessionStorage.getItem(draftKey) ?? "{}");
+    } catch {
+      return {};
+    }
+  });
   const [startedAt] = useState(() => new Date().toISOString());
+  const [index, setIndex] = useState(0);
+  const [now, setNow] = useState(() => Date.now());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const dialog = useDialog();
   const toast = useToast();
-  const left = paper.questions.length - Object.keys(answers).length;
+  const qs = paper.questions;
+  const q = qs[index];
+  const answered = qs.filter((x) => answers[x.id] != null).length;
+  const left = qs.length - answered;
 
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (left > 0 && !(await dialog.confirm({ title: "Hand in now?", body: `${left} question${left === 1 ? " is" : "s are"} not answered yet. You can only hand in once.`, confirmLabel: "Hand in anyway", cancelLabel: "Keep answering" }))) return;
+  useEffect(() => {
+    try {
+      window.sessionStorage.setItem(draftKey, JSON.stringify(answers));
+    } catch {
+      // Not kept across a refresh; nothing else changes.
+    }
+  }, [answers, draftKey]);
+
+  useEffect(() => {
+    const t = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(t);
+  }, []);
+
+  const choose = useCallback((j: number) => setAnswers((a) => ({ ...a, [qs[index].id]: j })), [qs, index]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLElement && ["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName)) return;
+      const k = e.key.toUpperCase();
+      const n = /^[1-6]$/.test(k) ? Number(k) - 1 : LETTERS.indexOf(k);
+      if (n >= 0 && n < qs[index].options.length) choose(n);
+      else if (e.key === "ArrowRight") setIndex((i) => Math.min(qs.length - 1, i + 1));
+      else if (e.key === "ArrowLeft") setIndex((i) => Math.max(0, i - 1));
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [choose, index, qs]);
+
+  const handIn = async () => {
+    if (left > 0 && !(await dialog.confirm({ title: "Hand in now?", body: `${left} question${left === 1 ? " is" : "s are"} not answered yet. You can only hand in once.`, confirmLabel: "Hand in anyway", cancelLabel: "Keep answering" }))) {
+      const first = qs.findIndex((x) => answers[x.id] == null);
+      if (first >= 0) setIndex(first);
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
       await api(`quizzes/${paper.quiz.id}/submit/`, { method: "POST", body: { answers, started_at: startedAt } });
+      try {
+        window.sessionStorage.removeItem(draftKey);
+      } catch {
+        // Nothing to clean up.
+      }
       toast.success("Handed in. Well done!");
       onDone();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not hand in. Check your connection and try again.");
+      setError(err instanceof ApiError ? err.message : "Could not hand in. Your answers are kept; check your connection and try again.");
     } finally {
       setBusy(false);
     }
   };
 
+  const closing = timeLeft(paper.quiz.closes_at, now);
+  const soon = new Date(paper.quiz.closes_at).getTime() - now < 10 * 60 * 1000;
+
   return (
-    <form onSubmit={submit} className="space-y-4">
-      <Alert tone="info">Answer every question, then press Hand in. You can hand in once. Closes {formatDateTime(paper.quiz.closes_at)}.</Alert>
-      {paper.questions.map((q, i) => (
-        <Card key={q.id} className="animate-enter">
-          <fieldset>
-            <legend className="mb-3 flex w-full justify-between gap-3 text-sm">
-              <span className="font-medium">{i + 1}. {q.text}</span>
-              <span className="shrink-0 text-xs text-soft">{q.marks} mark{q.marks === 1 ? "" : "s"}</span>
-            </legend>
-            <div className="space-y-2">
-              {q.options.map((o, j) => (
-                <label key={j} className={cx("flex min-h-12 cursor-pointer items-center gap-3 rounded-xl border px-3.5 py-2.5 text-sm transition duration-150 active:scale-[0.99]", answers[q.id] === j ? "border-brand bg-brand-soft font-medium shadow-sm" : "border-line hover:border-brand/40 hover:bg-muted/60")}>
-                  <input type="radio" className="size-4 accent-[var(--brand)]" name={q.id} checked={answers[q.id] === j} onChange={() => setAnswers((a) => ({ ...a, [q.id]: j }))} />
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line bg-surface p-3 shadow-[var(--shadow-card)]">
+        <div className="scrollbar-none flex gap-1.5 overflow-x-auto" role="tablist" aria-label="Questions">
+          {qs.map((x, i) => (
+            <button
+              key={x.id}
+              type="button"
+              role="tab"
+              aria-selected={i === index}
+              aria-label={`Question ${i + 1}${answers[x.id] != null ? ", answered" : ""}`}
+              onClick={() => setIndex(i)}
+              className={cx(
+                "flex size-9 shrink-0 items-center justify-center rounded-xl text-sm font-semibold transition duration-200",
+                i === index ? "scale-110 bg-brand text-white shadow-md shadow-brand/30 dark:text-slate-950" : answers[x.id] != null ? "bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-300" : "bg-muted text-soft hover:text-ink",
+              )}
+            >
+              {i + 1}
+            </button>
+          ))}
+        </div>
+        <span className={cx("inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold", soon ? "animate-pulse bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300" : "bg-muted text-soft")}>
+          <Timer className="size-3.5" aria-hidden /> Closes in {closing}
+        </span>
+      </div>
+
+      <Card key={q.id} className="animate-rise">
+        <fieldset>
+          <legend className="mb-1 text-xs font-semibold uppercase tracking-wider text-soft">Question {index + 1} of {qs.length} · {q.marks} mark{q.marks === 1 ? "" : "s"}</legend>
+          <p className="mb-5 text-lg font-semibold leading-snug sm:text-xl">{q.text}</p>
+          <div className="grid gap-2.5 sm:grid-cols-2">
+            {q.options.map((o, j) => {
+              const on = answers[q.id] === j;
+              return (
+                <label key={j} className={cx("flex min-h-14 cursor-pointer items-center gap-3 rounded-2xl border-2 px-3.5 py-3 text-base transition duration-150 active:scale-[0.99]", on ? "border-brand bg-brand-soft font-semibold shadow-[var(--shadow-lift)]" : "border-line hover:border-brand/40 hover:bg-muted/60")}>
+                  <input type="radio" className="sr-only" name={q.id} checked={on} onChange={() => choose(j)} />
+                  <span className={cx("flex size-8 shrink-0 items-center justify-center rounded-xl text-sm font-bold transition", on ? "bg-brand text-white dark:text-slate-950" : "bg-muted text-soft")}>{LETTERS[j]}</span>
                   {o}
                 </label>
-              ))}
-            </div>
-          </fieldset>
-        </Card>
-      ))}
+              );
+            })}
+          </div>
+        </fieldset>
+        <p className="mt-4 hidden text-xs text-soft sm:block">Tip: press {q.options.map((_, j) => LETTERS[j]).join(", ")} to choose, and the arrow keys to move.</p>
+      </Card>
+
       {error && <Alert>{error}</Alert>}
       <StickyBar>
-        <div className="min-w-40 flex-1">
-          <div className="mb-1 text-xs text-soft">{paper.questions.length - left} of {paper.questions.length} answered</div>
-          <Progress value={paper.questions.length ? ((paper.questions.length - left) / paper.questions.length) * 100 : 0} label="Questions answered" />
+        <Button variant="secondary" disabled={index === 0} onClick={() => setIndex((i) => i - 1)} aria-label="Previous question"><ChevronLeft aria-hidden /></Button>
+        <div className="min-w-32 flex-1">
+          <div className="mb-1 text-xs text-soft">{answered} of {qs.length} answered</div>
+          <Progress value={qs.length ? (answered / qs.length) * 100 : 0} label="Questions answered" />
         </div>
-        <Button type="submit" busy={busy}>Hand in</Button>
+        {index < qs.length - 1 ? (
+          <Button onClick={() => setIndex((i) => i + 1)}>Next <ChevronRight aria-hidden /></Button>
+        ) : (
+          <Button busy={busy} onClick={handIn}><Send aria-hidden /> Hand in</Button>
+        )}
       </StickyBar>
-    </form>
+    </div>
   );
 }
 
 function Review({ paper }: { paper: QuizPaper }) {
   const { attempt } = paper;
+  const pctScore = attempt && attempt.max_score ? Math.round((attempt.score / attempt.max_score) * 100) : null;
+  const praise = pctScore == null ? "" : pctScore >= 90 ? "Outstanding!" : pctScore >= 70 ? "Great work!" : pctScore >= 50 ? "Good effort." : "Keep practising: go over the answers below.";
   return (
     <div className="space-y-4">
       {attempt ? (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          <Stat label="Score" value={scoreText(attempt.score, attempt.max_score)} tone={attempt.score * 2 >= attempt.max_score ? "good" : "warn"} />
-          <Stat label="Handed in" value={formatDateTime(attempt.submitted_at)} />
+        <div className="relative flex animate-rise flex-wrap items-center gap-5 overflow-hidden rounded-3xl border border-line bg-surface p-5 shadow-[var(--shadow-card)] sm:p-6">
+          <Ring value={pctScore} size={112} label="score" tone={pctScore == null ? undefined : pctScore >= 70 ? "good" : pctScore >= 50 ? "warn" : "bad"} />
+          <div className="min-w-0">
+            <p className="text-2xl font-bold tracking-tight">{praise}</p>
+            <p className="mt-1 text-soft">You scored <strong className="text-ink">{scoreText(attempt.score, attempt.max_score)}</strong>. Handed in {formatDateTime(attempt.submitted_at)}.</p>
+          </div>
+          {pctScore != null && pctScore >= 90 && <PartyPopper className="absolute right-5 top-5 size-8 animate-float text-amber-500" aria-hidden />}
         </div>
       ) : paper.state === "closed" ? (
         <Alert tone="info">This quiz closed without being taken.</Alert>
@@ -133,16 +238,17 @@ function Review({ paper }: { paper: QuizPaper }) {
       )}
       {paper.answers_shown && paper.questions.map((q, i) => (
         <Card key={q.id}>
-          <div className="mb-2 flex justify-between gap-3 text-sm">
-            <span className="font-medium">{i + 1}. {q.text}</span>
+          <div className="mb-3 flex justify-between gap-3">
+            <span className="font-semibold">{i + 1}. {q.text}</span>
             {q.is_correct != null && <Badge tone={q.is_correct ? "good" : "bad"}>{q.is_correct ? "Right" : q.your_answer == null ? "Not answered" : "Wrong"}</Badge>}
           </div>
-          <ul className="space-y-1 text-sm">
+          <ul className="grid gap-2 text-sm sm:grid-cols-2">
             {q.options.map((o, j) => (
-              <li key={j} className={cx("rounded-xl border px-3 py-2", j === q.correct_option ? "border-green-500 bg-green-50 dark:bg-green-950" : j === q.your_answer ? "border-red-400 bg-red-50 dark:bg-red-950" : "border-line")}>
-                {o}
-                {j === q.correct_option && <span className="ml-2 text-xs text-green-700 dark:text-green-300">right answer</span>}
-                {j === q.your_answer && j !== q.correct_option && <span className="ml-2 text-xs text-red-700 dark:text-red-300">chosen</span>}
+              <li key={j} className={cx("flex items-center gap-2.5 rounded-xl border px-3 py-2", j === q.correct_option ? "border-green-500 bg-green-50 dark:bg-green-950" : j === q.your_answer ? "border-red-400 bg-red-50 dark:bg-red-950" : "border-line")}>
+                <span className={cx("flex size-7 shrink-0 items-center justify-center rounded-lg text-xs font-bold", j === q.correct_option ? "bg-green-600 text-white" : j === q.your_answer ? "bg-red-500 text-white" : "bg-muted text-soft")}>{LETTERS[j]}</span>
+                <span className="min-w-0 flex-1">{o}</span>
+                {j === q.correct_option && <span className="text-xs text-green-700 dark:text-green-300">right answer</span>}
+                {j === q.your_answer && j !== q.correct_option && <span className="text-xs text-red-700 dark:text-red-300">chosen</span>}
               </li>
             ))}
           </ul>
