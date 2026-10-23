@@ -1,11 +1,8 @@
-from django.db import transaction
 from rest_framework import serializers
 
-from apps.accounts import audit, services
-from apps.accounts.models import Role, SchoolMembership
-
-from . import context
+from . import services
 from .models import RESERVED_SUBDOMAINS, School
+from .selectors import EMPTY_USAGE
 
 
 class SchoolSerializer(serializers.ModelSerializer):
@@ -38,8 +35,7 @@ class PlatformSchoolSerializer(SchoolSerializer):
         fields = SchoolSerializer.Meta.fields + ["usage"]
 
     def get_usage(self, school):
-        empty = {"students": 0, "teachers": 0, "admins": 0, "fees_collected": "0.00"}
-        return self.context.get("usage", {}).get(school.id, empty)
+        return self.context.get("usage", {}).get(school.id, EMPTY_USAGE)
 
 
 class SchoolCreateSerializer(SchoolSerializer):
@@ -66,34 +62,12 @@ class SchoolCreateSerializer(SchoolSerializer):
             raise serializers.ValidationError({"academic_year_end": "The year must end after it starts."})
         return attrs
 
-    @transaction.atomic
     def create(self, validated):
-        from apps.academics.models import AcademicYear
-
-        admin = {k: validated.pop(k, None) for k in ("admin_name", "admin_email", "admin_phone")}
-        year = {k: validated.pop(k, None) for k in ("academic_year_name", "academic_year_start", "academic_year_end")}
-        school = School.objects.create(**validated)
-        actor = self.context["request"].user
-        with context.school_context(school):
-            if year["academic_year_name"]:
-                AcademicYear.objects.create(
-                    name=year["academic_year_name"],
-                    start_date=year["academic_year_start"],
-                    end_date=year["academic_year_end"],
-                    is_current=True,
-                )
-            user, _ = services.find_or_create_user(admin["admin_name"], admin["admin_email"], admin["admin_phone"])
-            services.grant_role(user, Role.ADMIN)
-            services.send_invite(user, school)
-            audit.record(actor, "school.create", "school", school.pk, after={"name": school.name}, school=school)
-        return school
-
-
-def first_admin(school):
-    with context.school_context(school):
-        return (
-            SchoolMembership.objects.filter(role=Role.ADMIN, is_active=True)
-            .select_related("user")
-            .order_by("created_at")
-            .first()
+        admin = {k: validated.pop(f"admin_{k}", None) for k in ("name", "email", "phone")}
+        year = {k: validated.pop(f"academic_year_{k}", None) for k in ("name", "start", "end")}
+        return services.onboard_school(
+            actor=self.context["request"].user,
+            school=validated,
+            admin=admin,
+            academic_year=year if year["name"] else None,
         )

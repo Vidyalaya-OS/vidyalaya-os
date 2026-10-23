@@ -7,6 +7,7 @@ import { Suspense, useEffect, useState } from "react";
 import { AuthLayout } from "@/components/AuthLayout";
 import { Alert, Button, Field, PageLoader, cx } from "@/components/ui";
 import { api, ApiError, Session } from "@/lib/api";
+import { useAppConfig } from "@/lib/config";
 import { useSession } from "@/lib/session";
 
 export default function LoginPage() {
@@ -32,13 +33,10 @@ function identifierProblem(value: string) {
 
 const RESEND_SECONDS = 30;
 
-// Shown only while developing, to save typing the demo logins.
-const DEMO = process.env.NODE_ENV === "development"
-  ? [["Owner", "owner@demo.test"], ["Admin", "admin@greenvalley.test"], ["Teacher", "teacher@greenvalley.test"], ["Student", "student1@greenvalley.test"], ["Parent", "parent1@greenvalley.test"]]
-  : [];
-
 function Login() {
   const { signIn } = useSession();
+  // Demo logins, offered only when the API says so (in development).
+  const { demo } = useAppConfig();
   const router = useRouter();
   const params = useSearchParams();
   const expired = params.get("expired") === "1";
@@ -233,12 +231,12 @@ function Login() {
 
       <p className="mt-8 text-sm text-soft">New here? Open the invite link your school sent you to set your password.</p>
 
-      {DEMO.length > 0 && (
+      {demo && demo.logins.length > 0 && (
         <div className="mt-6 rounded-2xl border border-dashed border-line p-3">
           <p className="text-xs font-semibold uppercase tracking-wider text-soft">Demo logins (development only)</p>
           <div className="mt-2 flex flex-wrap gap-1.5">
-            {DEMO.map(([label, email]) => (
-              <button key={email} type="button" onClick={() => { switchMode("password"); setIdentifier(email); setPassword("Demo-pass-2026"); setIdError(null); }}
+            {demo.logins.map(({ label, email }) => (
+              <button key={email} type="button" onClick={() => { switchMode("password"); setIdentifier(email); setPassword(demo.password); setIdError(null); }}
                 className="rounded-full border border-line px-2.5 py-1 text-xs font-medium text-soft transition hover:border-brand hover:text-brand">
                 {label}
               </button>

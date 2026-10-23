@@ -6,6 +6,7 @@ from rest_framework_simplejwt.views import TokenRefreshView
 from apps.academics import views as academics
 from apps.accounts import views as accounts
 from apps.attendance import views as attendance
+from apps.core import views as core
 from apps.exams import views as exams
 from apps.fees import views as fees
 from apps.homework import views as homework
@@ -58,6 +59,7 @@ auth = [
 
 api = [
     path("auth/", include(auth)),
+    path("config", core.AppConfigView.as_view(), name="app-config"),
     path("setup-status", people.SetupStatusView.as_view(), name="setup-status"),
     path("my-children", people.MyChildrenView.as_view(), name="my-children"),
     path("dashboard/student", dashboards.StudentDashboardView.as_view(), name="dashboard-student"),

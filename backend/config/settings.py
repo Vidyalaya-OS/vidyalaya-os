@@ -54,6 +54,7 @@ INSTALLED_APPS = [
     "apps.fees",
     "apps.quizzes",
     "apps.dashboards",
+    "apps.core",
 ]
 
 MIDDLEWARE = [
@@ -154,6 +155,18 @@ SIMPLE_JWT = {
     "UPDATE_LAST_LOGIN": True,
     "SIGNING_KEY": SECRET_KEY,
 }
+
+# Demo data (apps/core/demo.py). The data itself lives in DEMO_DATA_FILE.
+# DEMO_AUTOLOAD fills an empty database with it on `migrate`; the sign-in page
+# offers the demo logins only when DEMO_LOGINS_VISIBLE is on.
+DEMO_DATA_FILE = Path(env("DEMO_DATA_FILE", BASE_DIR / "config" / "demo_data.json"))
+DEMO_AUTOLOAD = env_bool("DEMO_AUTOLOAD", False)
+DEMO_LOGINS_VISIBLE = env_bool("DEMO_LOGINS_VISIBLE", DEBUG)
+
+# Choices offered in the web app's forms (apps/core/catalog.py). Leave empty
+# to use the built-in lists, or give comma-separated values.
+SCHOOL_BOARDS = env_list("SCHOOL_BOARDS")
+SCHOOL_TIMEZONES = env_list("SCHOOL_TIMEZONES")
 
 # Invite links stay valid for this many days.
 INVITE_VALID_DAYS = int(env("INVITE_VALID_DAYS", "7"))

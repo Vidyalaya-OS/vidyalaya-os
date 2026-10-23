@@ -10,6 +10,7 @@ import { useToast } from "@/components/toast";
 import { Alert, Avatar, Button, ButtonLink, Card, Field, PageHeader, Select, StickyBar, cx } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { formatDate } from "@/lib/format";
+import { useAppConfig } from "@/lib/config";
 import { compact } from "@/lib/useForm";
 
 const EMPTY = {
@@ -27,17 +28,6 @@ const STEPS: { title: string; hint: string; icon: React.ComponentType<{ classNam
   { title: "Review", hint: "Check and send", icon: Rocket, fields: [] },
 ];
 
-const PLANS = [
-  { key: "trial", label: "Trial", text: "Try every feature free while the school sets up." },
-  { key: "standard", label: "Standard", text: "Attendance, homework, tests, report cards and fees." },
-  { key: "premium", label: "Premium", text: "Everything in Standard, plus priority support." },
-];
-
-const BOARDS = ["CBSE", "ICSE", "State board", "IB", "Cambridge"];
-const TIMEZONES = ["Asia/Kolkata", "Asia/Dubai", "Asia/Singapore", "Europe/London", "America/New_York", "UTC"];
-const CURRENCIES = [["INR", "Indian rupee"], ["AED", "UAE dirham"], ["SGD", "Singapore dollar"], ["GBP", "Pound sterling"], ["USD", "US dollar"], ["EUR", "Euro"]];
-// Addresses the platform keeps for itself (mirrors RESERVED_SUBDOMAINS in the API).
-const RESERVED = ["www", "api", "admin", "app", "platform", "static", "media", "mail"];
 const SUBDOMAIN = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 
 /** "Green Valley Public School" -> "green-valley-public-school". */
@@ -53,11 +43,11 @@ function suggestYear() {
 }
 
 /** Checks that need more than one field, or know about the platform's rules. */
-function extraErrors(f: Form, step: number): Partial<Record<Key, string>> {
+function extraErrors(f: Form, step: number, reserved: string[]): Partial<Record<Key, string>> {
   const out: Partial<Record<Key, string>> = {};
   if (step === 0 && f.subdomain) {
     if (!SUBDOMAIN.test(f.subdomain)) out.subdomain = "Use lowercase letters, digits and hyphens, starting and ending with a letter or digit.";
-    else if (RESERVED.includes(f.subdomain)) out.subdomain = "This address is reserved. Choose another.";
+    else if (reserved.includes(f.subdomain)) out.subdomain = "This address is reserved. Choose another.";
   }
   if (step === 1) {
     const year = [f.academic_year_name, f.academic_year_start, f.academic_year_end];
@@ -82,6 +72,9 @@ export default function NewSchool() {
   const [done, setDone] = useState<{ name: string; email: string } | null>(null);
   const stepRef = useRef<HTMLDivElement>(null);
   const toast = useToast();
+  // Plans, boards, time zones and currencies come from the API's config.
+  const config = useAppConfig();
+  const PLANS = config.plans.map((p) => ({ key: p.key, label: p.label, text: p.description }));
 
   const update = (patch: Partial<Form>) => {
     setForm((f) => ({ ...f, ...patch }));
@@ -102,7 +95,7 @@ export default function NewSchool() {
     const controls = stepRef.current?.querySelectorAll<HTMLInputElement | HTMLSelectElement>("input, select") ?? [];
     let ok = true;
     for (const el of controls) if (!el.checkValidity()) ok = false;
-    const extra = extraErrors(form, i);
+    const extra = extraErrors(form, i, config.reserved_subdomains);
     if (Object.keys(extra).length) {
       setErrors((e) => ({ ...e, ...extra }));
       ok = false;
@@ -201,7 +194,7 @@ export default function NewSchool() {
                     <div className="sm:col-span-2">
                       <Field label="Board" placeholder="CBSE, ICSE, State board" maxLength={100} {...bind("board")} />
                       <div className="mt-2 flex flex-wrap gap-1.5">
-                        {BOARDS.map((b) => (
+                        {config.boards.map((b) => (
                           <button key={b} type="button" onClick={() => update({ board: b })}
                             className={cx("rounded-full border px-3 py-1 text-xs font-medium transition", form.board === b ? "border-brand bg-brand-soft text-brand" : "border-line text-soft hover:text-ink")}>
                             {b}
@@ -232,10 +225,10 @@ export default function NewSchool() {
                 <Card title="Local settings" icon={<Globe aria-hidden />}>
                   <div className="grid gap-4 sm:grid-cols-2">
                     <Select label="Time zone" {...bind("timezone")}>
-                      {TIMEZONES.map((t) => <option key={t} value={t}>{t.replace("_", " ")}</option>)}
+                      {config.timezones.map((t) => <option key={t} value={t}>{t.replace("_", " ")}</option>)}
                     </Select>
                     <Select label="Currency" {...bind("currency")}>
-                      {CURRENCIES.map(([code, label]) => <option key={code} value={code}>{code} · {label}</option>)}
+                      {config.currencies.map((c) => <option key={c.code} value={c.code}>{c.code} · {c.name}</option>)}
                     </Select>
                   </div>
                 </Card>
@@ -315,7 +308,7 @@ export default function NewSchool() {
                 </div>
               </div>
             </Tilt>
-            <p className="text-xs text-soft">The admin&apos;s invite link stays valid for 7 days. If it runs out, use Resend admin invite on the Schools page.</p>
+            <p className="text-xs text-soft">The admin&apos;s invite link stays valid for {config.invite_valid_days} days. If it runs out, use Resend admin invite on the Schools page.</p>
           </div>
         </aside>
       </div>

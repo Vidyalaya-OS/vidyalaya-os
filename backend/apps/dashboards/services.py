@@ -18,7 +18,7 @@ from apps.homework.models import Homework, HomeworkStatus
 from apps.people.models import Enrollment
 from apps.quizzes.models import QuizAttempt
 from apps.quizzes.serializers import quiz_state
-from apps.quizzes.views import quizzes_with_totals
+from apps.quizzes.selectors import quizzes_with_totals
 from apps.tenancy.context import school_today
 from apps.timetable.models import TimetableEntry
 
