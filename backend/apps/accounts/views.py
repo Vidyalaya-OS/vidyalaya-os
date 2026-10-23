@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.contrib.auth import authenticate
 from django.db import transaction
 from django.utils import timezone
@@ -134,6 +135,13 @@ def _has_parent_role(user):
     return SchoolMembership.objects.filter(user=user, role=Role.PARENT, is_active=True).exists()
 
 
+def _shows_demo_code(user):
+    """In a public demo nothing is sent, so the code is shown on screen. Only
+    for the demo accounts (addresses under .test, which no real mailbox uses),
+    so a real person added during a demo never has their code shown."""
+    return settings.DEMO_MODE and bool(user.email) and user.email.endswith(".test")
+
+
 class OtpRequestView(APIView):
     """Optional login for parents: a 6-digit code by SMS or email."""
 
@@ -146,11 +154,14 @@ class OtpRequestView(APIView):
         data = OtpRequestSerializer(data=request.data)
         data.is_valid(raise_exception=True)
         user = User.objects.find_by_identifier(data.validated_data["identifier"])
+        answer = {"detail": "If this account can use a code, one has been sent."}
         if user is not None and user.is_active and _has_parent_role(user):
             code = OneTimeCode.issue(user)
             transaction.on_commit(lambda: notify.send_login_code(user, code))
+            if _shows_demo_code(user):
+                answer["demo_code"] = code
         # Same answer either way, so the form does not reveal who is registered.
-        return Response({"detail": "If this account can use a code, one has been sent."})
+        return Response(answer)
 
 
 class OtpVerifyView(APIView):

@@ -2,6 +2,7 @@ import re
 
 from django.core import mail
 from django.core.cache import cache
+from django.test import override_settings
 from rest_framework.test import APIClient
 
 from apps.accounts import services
@@ -159,6 +160,26 @@ class OtpTests(ApiTestCase):
         good = APIClient().post("/api/auth/otp/verify", {"identifier": "parent@alpha.test", "code": code})
         self.assertEqual(good.status_code, 200)
         self.assertEqual(good.data["memberships"][0]["roles"], ["parent"])
+
+    def test_code_is_never_in_the_answer_outside_demo_mode(self):
+        response = APIClient().post("/api/auth/otp/request", {"identifier": "parent@alpha.test"})
+        self.assertNotIn("demo_code", response.data)
+
+    @override_settings(DEMO_MODE=True)
+    def test_demo_mode_shows_the_code_for_demo_accounts(self):
+        response = APIClient().post("/api/auth/otp/request", {"identifier": "parent@alpha.test"})
+        code = response.data["demo_code"]
+        good = APIClient().post("/api/auth/otp/verify", {"identifier": "parent@alpha.test", "code": code})
+        self.assertEqual(good.status_code, 200)
+
+    @override_settings(DEMO_MODE=True)
+    def test_demo_mode_keeps_real_addresses_codes_private(self):
+        user = self.a.parent_user
+        user.email = "real.parent@example.com"
+        user.save(update_fields=["email"])
+        response = APIClient().post("/api/auth/otp/request", {"identifier": "real.parent@example.com"})
+        self.assertTrue(OneTimeCode.objects.filter(user=user).exists())
+        self.assertNotIn("demo_code", response.data)
 
     def test_codes_are_only_for_parents(self):
         with self.captureOnCommitCallbacks(execute=True):

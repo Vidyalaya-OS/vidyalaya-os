@@ -17,7 +17,7 @@ export type AppConfig = {
   payment_modes: { key: string; label: string }[];
   invite_valid_days: number;
   login_code: { digits: number; valid_minutes: number; roles: string[] };
-  demo: { password: string; logins: { role: string; label: string; email: string }[] } | null;
+  demo: { password: string; logins: { role: string; label: string; email: string }[]; codes_on_screen?: boolean } | null;
 };
 
 export const DEFAULT_CONFIG: AppConfig = {

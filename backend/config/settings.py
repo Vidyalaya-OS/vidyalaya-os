@@ -7,6 +7,7 @@ so the same code runs locally, in CI and in production.
 import os
 from datetime import timedelta
 from pathlib import Path
+from urllib.parse import unquote, urlparse
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -26,6 +27,15 @@ def env_list(name, default=""):
 SECRET_KEY = env("DJANGO_SECRET_KEY", "dev-only-insecure-key-change-me-before-deploying")
 DEBUG = env_bool("DJANGO_DEBUG", True)
 ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1,.localhost,testserver")
+# Render gives every service its public hostname; accept it without extra setup.
+if env("RENDER_EXTERNAL_HOSTNAME"):
+    ALLOWED_HOSTS.append(env("RENDER_EXTERNAL_HOSTNAME"))
+CSRF_TRUSTED_ORIGINS = env_list("CSRF_TRUSTED_ORIGINS")
+
+# A public demo: fills the database with the demo data, shows the demo logins
+# on the sign-in page and shows parent login codes for the demo accounts on
+# screen, since no SMS or email is sent. Never turn this on for a real school.
+DEMO_MODE = env_bool("DEMO_MODE", False)
 
 # The domain schools live under: greenvalley.<PLATFORM_DOMAIN>.
 PLATFORM_DOMAIN = env("PLATFORM_DOMAIN", "localhost")
@@ -59,6 +69,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -92,14 +103,16 @@ WSGI_APPLICATION = "config.wsgi.application"
 # PostgreSQL is required: school separation relies on its row-level security.
 # The app must connect as a role that is NOT a superuser and does NOT have
 # BYPASSRLS, otherwise the database policies are silently skipped.
+# Hosts such as Render give one DATABASE_URL instead of the POSTGRES_* values.
+_db_url = urlparse(env("DATABASE_URL", ""))
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
-        "NAME": env("POSTGRES_DB", "sms"),
-        "USER": env("POSTGRES_USER", "sms_app"),
-        "PASSWORD": env("POSTGRES_PASSWORD", "sms_app"),
-        "HOST": env("POSTGRES_HOST", "localhost"),
-        "PORT": env("POSTGRES_PORT", "5432"),
+        "NAME": _db_url.path.lstrip("/") or env("POSTGRES_DB", "sms"),
+        "USER": unquote(_db_url.username or "") or env("POSTGRES_USER", "sms_app"),
+        "PASSWORD": unquote(_db_url.password or "") or env("POSTGRES_PASSWORD", "sms_app"),
+        "HOST": _db_url.hostname or env("POSTGRES_HOST", "localhost"),
+        "PORT": str(_db_url.port or "") or env("POSTGRES_PORT", "5432"),
         "CONN_MAX_AGE": int(env("POSTGRES_CONN_MAX_AGE", "0")),
     }
 }
@@ -126,6 +139,11 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage" if not DEBUG
+                    else "django.contrib.staticfiles.storage.StaticFilesStorage"},
+}
 MEDIA_URL = "media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
@@ -158,10 +176,11 @@ SIMPLE_JWT = {
 
 # Demo data (apps/core/demo.py). The data itself lives in DEMO_DATA_FILE.
 # DEMO_AUTOLOAD fills an empty database with it on `migrate`; the sign-in page
-# offers the demo logins only when DEMO_LOGINS_VISIBLE is on.
+# offers the demo logins only when DEMO_LOGINS_VISIBLE is on. DEMO_MODE turns
+# both on.
 DEMO_DATA_FILE = Path(env("DEMO_DATA_FILE", BASE_DIR / "config" / "demo_data.json"))
-DEMO_AUTOLOAD = env_bool("DEMO_AUTOLOAD", False)
-DEMO_LOGINS_VISIBLE = env_bool("DEMO_LOGINS_VISIBLE", DEBUG)
+DEMO_AUTOLOAD = env_bool("DEMO_AUTOLOAD", DEMO_MODE)
+DEMO_LOGINS_VISIBLE = env_bool("DEMO_LOGINS_VISIBLE", DEBUG or DEMO_MODE)
 
 # Choices offered in the web app's forms (apps/core/catalog.py). Leave empty
 # to use the built-in lists, or give comma-separated values.

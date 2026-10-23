@@ -168,6 +168,10 @@ The product name in emails and in `GET /api/config` comes from `APP_NAME` (defau
 
 Create a real platform owner with `python manage.py createsuperuser`. In development, invite emails and login codes are printed in the API's console.
 
+## Deploy a demo
+
+`render.yaml` and `DEPLOY.md` put a public demo online for free: the API and PostgreSQL on Render, the web app on Vercel, with `DEMO_MODE` loading the demo data and showing the demo logins.
+
 ## Tests
 
 ```bash

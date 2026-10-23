@@ -53,5 +53,6 @@ def app_config():
     if getattr(settings, "DEMO_LOGINS_VISIBLE", False):
         from .demo import demo_logins
 
-        data["demo"] = demo_logins()
+        # In a public demo the parent code is shown on screen instead of sent.
+        data["demo"] = {**demo_logins(), "codes_on_screen": getattr(settings, "DEMO_MODE", False)}
     return data

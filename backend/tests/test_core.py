@@ -32,6 +32,11 @@ class AppConfigTests(ApiTestCase):
         data = self.client.get("/api/config").data["demo"]
         self.assertEqual(data["password"], demo.load_config()["password"])
         self.assertEqual(data["logins"][0]["email"], demo.load_config()["owner"]["email"])
+        self.assertFalse(data["codes_on_screen"])
+
+    @override_settings(DEMO_LOGINS_VISIBLE=True, DEMO_MODE=True)
+    def test_demo_mode_says_codes_are_shown_on_screen(self):
+        self.assertTrue(self.client.get("/api/config").data["demo"]["codes_on_screen"])
 
     @override_settings(SCHOOL_BOARDS=["Kerala State"])
     def test_lists_can_be_replaced_in_settings(self):

@@ -1,0 +1,41 @@
+# Render Blueprint for the Vidyalaya OS API and its PostgreSQL database.
+# In Render: New > Blueprint, pick this repository, Apply. The web app runs on
+# Vercel (see DEPLOY.md) and forwards /api to this service.
+databases:
+  - name: vidyalaya-db
+    plan: free
+    region: singapore
+    postgresMajorVersion: "16"
+    databaseName: vidyalaya
+    user: vidyalaya
+
+services:
+  - type: web
+    name: vidyalaya-api
+    runtime: python
+    plan: free
+    region: singapore
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt && python manage.py collectstatic --noinput
+    startCommand: bin/start.sh
+    healthCheckPath: /api/config
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.8"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: vidyalaya-db
+          property: connectionString
+      - key: DJANGO_SECRET_KEY
+        generateValue: true
+      - key: DJANGO_DEBUG
+        value: "false"
+      # Public demo: loads the demo data on every start, shows the demo logins
+      # and shows parent login codes for the demo accounts on screen.
+      - key: DEMO_MODE
+        value: "true"
+      # Several people try the demo logins at once during a presentation.
+      - key: LOGIN_THROTTLE_RATE
+        value: "60/min"
+      - key: DJANGO_TIME_ZONE
+        value: Asia/Kolkata

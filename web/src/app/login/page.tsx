@@ -35,7 +35,7 @@ const RESEND_SECONDS = 30;
 
 function Login() {
   const { signIn } = useSession();
-  // Demo logins, offered only when the API says so (in development).
+  // Demo logins, offered only when the API says so (in development or DEMO_MODE).
   const { demo } = useAppConfig();
   const router = useRouter();
   const params = useSearchParams();
@@ -92,10 +92,13 @@ function Login() {
   const sendCode = () => {
     if (!checkIdentifier()) return;
     run(async () => {
-      await api<{ detail: string }>("auth/otp/request", { method: "POST", body: { identifier: identifier.trim() }, auth: false, school: null });
-      setInfo(`If ${identifier.trim()} belongs to a parent account, a 6-digit code is on its way. It works once, for 10 minutes.`);
+      const res = await api<{ detail: string; demo_code?: string }>("auth/otp/request", { method: "POST", body: { identifier: identifier.trim() }, auth: false, school: null });
+      // A public demo sends nothing, so the API hands back the demo account's code.
+      setInfo(res.demo_code
+        ? `Demo: no SMS is sent, so here is the code for ${identifier.trim()}: ${res.demo_code}. We have filled it in for you.`
+        : `If ${identifier.trim()} belongs to a parent account, a 6-digit code is on its way. It works once, for 10 minutes.`);
       setCodeSent(true);
-      setCode("");
+      setCode(res.demo_code ?? "");
       setWait(RESEND_SECONDS);
     });
   };
@@ -233,7 +236,7 @@ function Login() {
 
       {demo && demo.logins.length > 0 && (
         <div className="mt-6 rounded-2xl border border-dashed border-line p-3">
-          <p className="text-xs font-semibold uppercase tracking-wider text-soft">Demo logins (development only)</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-soft">Demo logins</p>
           <div className="mt-2 flex flex-wrap gap-1.5">
             {demo.logins.map(({ label, email }) => (
               <button key={email} type="button" onClick={() => { switchMode("password"); setIdentifier(email); setPassword(demo.password); setIdError(null); }}
@@ -242,6 +245,9 @@ function Login() {
               </button>
             ))}
           </div>
+          {demo.codes_on_screen && (
+            <p className="mt-2 text-xs text-soft">Parent code works too: choose Parent code and use {demo.logins.find((l) => l.role === "parent")?.email ?? "a parent's email"}. The code shows here instead of by SMS.</p>
+          )}
         </div>
       )}
     </AuthLayout>

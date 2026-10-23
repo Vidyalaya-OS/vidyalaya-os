@@ -2,7 +2,11 @@ import type { NextConfig } from "next";
 
 // In development the web app forwards /api to the Django API, so the browser
 // talks to one origin. In production set API_URL to the API's address.
-const apiUrl = process.env.API_URL ?? "http://localhost:8000";
+// It is read when the app is built, so change it with a new deploy.
+const apiUrl = process.env.API_URL?.replace(/\/+$/, "") ?? "http://localhost:8000";
+if (process.env.VERCEL && !process.env.API_URL) {
+  throw new Error("Set API_URL to the API's address (for example https://vidyalaya-api.onrender.com) in the Vercel project settings.");
+}
 
 const nextConfig: NextConfig = {
   devIndicators: false,
