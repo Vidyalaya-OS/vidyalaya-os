@@ -10,6 +10,10 @@ type Ctx = {
   memberships: Membership[];
   school: Membership | null;
   roles: Role[];
+  /** The portal being shown: one of the person's roles. The menu and home
+   * screen follow it, so an admin sees admin sections only. */
+  portal: Role | null;
+  setPortal: (role: Role) => void;
   hasRole: (...roles: Role[]) => boolean;
   signIn: (session: Session) => void;
   signOut: () => Promise<void>;
@@ -17,18 +21,26 @@ type Ctx = {
   reload: () => Promise<void>;
 };
 
+const PORTAL_KEY = "sms.homeView";
+
 const SessionContext = createContext<Ctx | null>(null);
 
 export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
   const [subdomain, setSubdomain] = useState<string | null>(null);
+  const [savedPortal, setSavedPortal] = useState<Role | null>(null);
 
   useEffect(() => {
     // Read the stored login once, on the client.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setSession(storage.session());
     setSubdomain(storage.school());
+    try {
+      setSavedPortal(window.localStorage.getItem(PORTAL_KEY) as Role | null);
+    } catch {
+      // No storage: start on the first role.
+    }
     setReady(true);
   }, []);
 
@@ -66,6 +78,15 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     setSession(next);
   }, []);
 
+  const setPortal = useCallback((role: Role) => {
+    setSavedPortal(role);
+    try {
+      window.localStorage.setItem(PORTAL_KEY, role);
+    } catch {
+      // Remembered for this visit only.
+    }
+  }, []);
+
   const value = useMemo<Ctx>(() => {
     const memberships = session?.memberships ?? [];
     const school = memberships.find((m) => m.school.subdomain === subdomain) ?? null;
@@ -76,13 +97,15 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       memberships,
       school,
       roles,
+      portal: savedPortal && roles.includes(savedPortal) ? savedPortal : (roles[0] ?? null),
+      setPortal,
       hasRole: (...want: Role[]) => want.some((r) => roles.includes(r)),
       signIn,
       signOut,
       chooseSchool,
       reload,
     };
-  }, [ready, session, subdomain, signIn, signOut, chooseSchool, reload]);
+  }, [ready, session, subdomain, savedPortal, setPortal, signIn, signOut, chooseSchool, reload]);
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }

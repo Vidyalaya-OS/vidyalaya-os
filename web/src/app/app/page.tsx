@@ -7,41 +7,26 @@ import { PageHeader, Segmented } from "@/components/ui";
 import { Role } from "@/lib/api";
 import { ROLE_LABELS, useSession } from "@/lib/session";
 
-const VIEW_KEY = "sms.homeView";
-
 function greeting() {
   const h = new Date().getHours();
   return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
 }
 
 /** Each role gets its own home screen. Someone with several roles (a teacher
- * who is also a parent) switches between them; the choice is remembered. */
+ * who is also a parent) switches portal here or in the menu; the choice is
+ * remembered and the menu follows it. */
 export default function SchoolHome() {
-  const { roles, user, school } = useSession();
-  const [view, setView] = useState<Role | null>(null);
+  const { roles, user, school, portal, setPortal } = useSession();
   const [hello, setHello] = useState("Hello");
 
   useEffect(() => {
-    // Time of day and the saved view are only known in the browser.
+    // The time of day is only known in the browser.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setHello(greeting());
-    try {
-      const saved = window.localStorage.getItem(VIEW_KEY) as Role | null;
-      if (saved && roles.includes(saved)) setView(saved);
-    } catch {
-      // No storage: show the first role.
-    }
-  }, [roles]);
+  }, []);
 
-  const current = view && roles.includes(view) ? view : roles[0];
-  const choose = (r: Role) => {
-    setView(r);
-    try {
-      window.localStorage.setItem(VIEW_KEY, r);
-    } catch {
-      // Remembered for this visit only.
-    }
-  };
+  const current = portal ?? roles[0];
+  const choose = (r: Role) => setPortal(r);
   const today = new Date().toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" });
 
   return (

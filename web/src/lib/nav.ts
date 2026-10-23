@@ -36,6 +36,22 @@ const OFFICE: Item[] = [
   { href: "/app/admins", label: "Admins", icon: ShieldCheck, roles: ["admin"] },
 ];
 
+/** Pages reached from a link rather than the menu, and who may open them. */
+const DETAIL_PAGES: { href: string; roles: Role[] }[] = [
+  { href: "/app/fees/receipts", roles: ALL },
+  { href: "/app/report-cards/", roles: ALL },
+];
+
+/** The roles that may open a page, from the longest matching menu entry;
+ * null for pages every member may open. */
+export function rolesFor(pathname: string): Role[] | null {
+  const entries = [...OVERVIEW, ...CLASSROOM, ...RECORD, ...OFFICE, ...DETAIL_PAGES].filter((i) =>
+    i.href.endsWith("/") ? pathname.startsWith(i.href) : pathname === i.href || pathname.startsWith(`${i.href}/`),
+  );
+  if (entries.length === 0) return null;
+  return entries.sort((a, b) => b.href.length - a.href.length)[0].roles;
+}
+
 function pick(items: Item[], roles: Role[]): NavItem[] {
   return items.filter((i) => i.roles.some((r) => roles.includes(r))).map((i) => ({ href: i.href, label: i.label, icon: i.icon, exact: i.exact }));
 }

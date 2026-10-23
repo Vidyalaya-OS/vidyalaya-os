@@ -9,6 +9,7 @@ import { useTheme } from "@/lib/theme";
 
 export type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string }>; exact?: boolean };
 export type NavGroup = { title?: string; items: NavItem[] };
+export type PortalSwitch = { value: string; options: { key: string; label: string }[]; onChange: (key: string) => void };
 
 function isActive(pathname: string, item: NavItem) {
   return item.exact ? pathname === item.href : pathname === item.href || pathname.startsWith(`${item.href}/`);
@@ -24,6 +25,7 @@ export function AppShell({
   switchHref,
   onSignOut,
   banner,
+  portal,
   children,
 }: {
   brand: { title: string; subtitle: string; initials?: string; mark?: React.ReactNode };
@@ -33,6 +35,7 @@ export function AppShell({
   switchHref?: string;
   onSignOut: () => void;
   banner?: React.ReactNode;
+  portal?: PortalSwitch;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -62,7 +65,7 @@ export function AppShell({
 
       {/* Desktop sidebar */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-72 flex-col border-r border-line bg-surface lg:flex print:hidden">
-        <SidebarBody brand={brand} groups={groups} pathname={pathname} user={user} switchHref={switchHref} onSignOut={onSignOut} />
+        <SidebarBody brand={brand} groups={groups} pathname={pathname} user={user} switchHref={switchHref} onSignOut={onSignOut} portal={portal} />
       </aside>
 
       {/* Phone and tablet top bar */}
@@ -129,7 +132,7 @@ export function AppShell({
             <IconButton label="Close menu" className="absolute right-2 top-3 z-10" onClick={() => setDrawer(false)}>
               <X aria-hidden />
             </IconButton>
-            <SidebarBody brand={brand} groups={groups} pathname={pathname} user={user} switchHref={switchHref} onSignOut={onSignOut} />
+            <SidebarBody brand={brand} groups={groups} pathname={pathname} user={user} switchHref={switchHref} onSignOut={onSignOut} portal={portal} />
           </div>
         )}
       </dialog>
@@ -146,13 +149,14 @@ function BrandMark({ initials }: { initials: string }) {
   );
 }
 
-function SidebarBody({ brand, groups, pathname, user, switchHref, onSignOut }: {
+function SidebarBody({ brand, groups, pathname, user, switchHref, onSignOut, portal }: {
   brand: { title: string; subtitle: string; initials?: string; mark?: React.ReactNode };
   groups: NavGroup[];
   pathname: string;
   user: { name: string; detail: string };
   switchHref?: string;
   onSignOut: () => void;
+  portal?: PortalSwitch;
 }) {
   return (
     <>
@@ -163,6 +167,25 @@ function SidebarBody({ brand, groups, pathname, user, switchHref, onSignOut }: {
           <div className="truncate text-xs text-soft">{brand.subtitle}</div>
         </div>
       </div>
+      {portal && portal.options.length > 1 && (
+        <div className="px-4 pb-3">
+          <div className="mb-1.5 px-1 text-[0.7rem] font-semibold uppercase tracking-wider text-soft/80">Portal</div>
+          <div role="radiogroup" aria-label="Portal" className="grid gap-1 rounded-xl bg-muted p-1" style={{ gridTemplateColumns: `repeat(${portal.options.length}, minmax(0, 1fr))` }}>
+            {portal.options.map((o) => (
+              <button
+                key={o.key}
+                type="button"
+                role="radio"
+                aria-checked={portal.value === o.key}
+                onClick={() => portal.onChange(o.key)}
+                className={cx("min-h-8 truncate rounded-lg px-1.5 text-xs font-semibold transition", portal.value === o.key ? "bg-surface text-brand shadow-sm" : "text-soft hover:text-ink")}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       <nav aria-label="Sections" className="scrollbar-none flex-1 overflow-y-auto px-3 pb-4">
         {groups.map((g, gi) => (
           <div key={g.title ?? gi} className="mt-3 first:mt-0">
