@@ -1,12 +1,14 @@
 "use client";
 
-import { ArrowRight, Check, ChevronDown, LogIn, Sparkles } from "lucide-react";
+import { ArrowRight, Check, ChevronDown, LogIn, Mail, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ThemeButton } from "@/components/AppShell";
 import { Logo, Logo3D } from "@/components/brand";
+import { ContactDetails } from "@/components/ContactDetails";
 import { Reveal, Tilt } from "@/components/motion";
-import { ButtonLink, cx } from "@/components/ui";
+import { ButtonLink, buttonClass, cx } from "@/components/ui";
+import { CONTACT, contactLinks } from "@/lib/contact";
 import { FAQ, FEATURES, ROLES, RoleKey, STEPS, TRUST } from "./content";
 
 /** The public front page: what the system is, and what it means for each
@@ -21,6 +23,7 @@ export function Landing() {
       <Features />
       <Trust />
       <Faq />
+      <Contact />
       <Footer />
     </div>
   );
@@ -39,7 +42,7 @@ function TopBar() {
       <div className="mx-auto flex h-16 max-w-6xl items-center gap-4 px-4 sm:px-6">
         <Link href="/" aria-label="Vidyalaya OS home"><Logo subtitle={false} /></Link>
         <nav aria-label="Page" className="ml-4 hidden items-center gap-1 text-sm font-medium text-soft md:flex">
-          {[["#roles", "Who it's for"], ["#how", "How it works"], ["#features", "Features"], ["#faq", "Questions"]].map(([href, label]) => (
+          {[["#roles", "Who it's for"], ["#how", "How it works"], ["#features", "Features"], ["#faq", "Questions"], ["#contact", "Contact"]].map(([href, label]) => (
             <a key={href} href={href} className="rounded-lg px-3 py-2 transition hover:bg-muted hover:text-ink">{label}</a>
           ))}
         </nav>
@@ -326,12 +329,37 @@ function Faq() {
   );
 }
 
+function Contact() {
+  return (
+    <section id="contact" className="scroll-mt-20 border-t border-line bg-surface py-16 sm:py-20">
+      <div className="mx-auto max-w-4xl px-4 sm:px-6">
+        <Reveal className="mx-auto max-w-2xl text-center">
+          <p className="text-sm font-semibold uppercase tracking-wider text-brand">Contact</p>
+          <h2 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">Talk to us</h2>
+          <p className="mt-3 text-soft">Want Vidyalaya OS for your school, or have a question? Write or call, and {CONTACT.productOwner} will get back to you.</p>
+        </Reveal>
+        <Reveal delay={80}>
+          <ContactDetails className="mt-10" />
+        </Reveal>
+        <div className="mt-8 flex justify-center">
+          <a href={contactLinks.email} className={buttonClass("primary", "lg")}><Mail aria-hidden /> Email us</a>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function Footer() {
   return (
     <footer className="border-t border-line bg-surface">
       <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-4 py-8 text-sm text-soft sm:flex-row sm:px-6">
         <Logo />
-        <p>For owners, admins, teachers, students and parents.</p>
+        <div className="text-center">
+          <p>For owners, admins, teachers, students and parents.</p>
+          <p className="mt-1">
+            Product owner: {CONTACT.productOwner} · <a href={contactLinks.email} className="hover:text-ink hover:underline">{CONTACT.email}</a> · <a href={contactLinks.phone} className="whitespace-nowrap hover:text-ink hover:underline">{CONTACT.phoneLabel}</a>
+          </p>
+        </div>
         <Link href="/login" className="font-semibold text-brand hover:underline">Sign in</Link>
       </div>
     </footer>

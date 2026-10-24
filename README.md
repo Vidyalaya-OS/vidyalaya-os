@@ -4,6 +4,24 @@
 
 <p align="center"><b>The school operating system.</b> Timetables, attendance, homework, quizzes, report cards and fees for every school, teacher, student and parent.</p>
 
+## Watch the promo
+
+<p align="center">
+  <a href="docs/video/vidyalaya-os-promo.mp4"><img src="docs/video/poster.jpg" width="270" alt="Vidyalaya OS promo video (45 seconds). Click to play."></a>
+  <br>
+  <a href="docs/video/vidyalaya-os-promo.mp4"><b>▶ Play the 45-second promo</b></a> (vertical 1080×1920 MP4, 11 MB)
+</p>
+
+The video file is in `docs/video/vidyalaya-os-promo.mp4`. GitHub does not play a video from a repository path inside a README, so the poster above opens the file instead. To get an inline player on GitHub, open this README in the GitHub web editor (the pencil icon), drag the MP4 into the text where you want it, and commit: GitHub uploads it and replaces it with a link it plays in place.
+
+## Contact
+
+- **Product owner:** Avnish
+- **Email:** [tech.kisan.gamer@gmail.com](mailto:tech.kisan.gamer@gmail.com)
+- **Mobile:** [+91 77008 01472](tel:+917700801472)
+
+The web app shows the same details on the landing page and in the platform owner portal. They are set in one place, `web/src/lib/contact.ts`.
+
 Vidyalaya OS is one web platform that many schools join. Each school gets its own private portal, run by its own admin, where teachers, students and parents each see only what concerns them.
 
 This repository holds the **core platform** (build step 2 of the spec), the **academic and fee features** (build step 3), and **quizzes and the student and parent dashboards** (part of build step 4):

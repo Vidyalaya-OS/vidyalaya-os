@@ -1,16 +1,18 @@
 "use client";
 
 import {
-  Archive, Building2, CircleCheck, CirclePlus, Crown, GraduationCap, Mail, PauseCircle, Search, Sparkles, Users, Wallet,
+  Archive, Building2, CircleCheck, CirclePlus, Crown, GraduationCap, Headset, Mail, PauseCircle, Search, Sparkles, Users, Wallet,
 } from "lucide-react";
 import { useState } from "react";
 import { Logo3D } from "@/components/brand";
+import { ContactDetails } from "@/components/ContactDetails";
 import { BarList, Donut } from "@/components/charts";
 import { useDialog } from "@/components/dialog";
 import { Tilt } from "@/components/motion";
 import { useToast } from "@/components/toast";
 import { Avatar, Badge, Button, ButtonLink, Card, CountUp, DataTable, Empty, ErrorState, Field, Loading, Stat, cx, statusTone } from "@/components/ui";
 import { api, Page } from "@/lib/api";
+import { CONTACT } from "@/lib/contact";
 import { money } from "@/lib/format";
 import { rows, useApi, useDebounced } from "@/lib/useApi";
 
@@ -205,6 +207,9 @@ export default function PlatformHome() {
           )}
         </Card>
       </div>
+      <Card title="Support and contact" icon={<Headset aria-hidden />} description={`Questions about Vidyalaya OS, your plan or a school? Reach ${CONTACT.productOwner}, the product owner.`} className="mt-5">
+        <ContactDetails />
+      </Card>
       <p className="mt-5 text-sm text-soft">You see head counts and fee totals only. Student records stay private to each school.</p>
     </>
   );
