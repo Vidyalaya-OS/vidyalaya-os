@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, Check, ChevronDown, LogIn, Mail, Sparkles } from "lucide-react";
+import { ArrowRight, Check, ChevronDown, LogIn, Mail, Play, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ThemeButton } from "@/components/AppShell";
@@ -9,6 +9,7 @@ import { ContactDetails } from "@/components/ContactDetails";
 import { Reveal, Tilt } from "@/components/motion";
 import { ButtonLink, buttonClass, cx } from "@/components/ui";
 import { CONTACT, contactLinks } from "@/lib/contact";
+import { PromoVideo } from "./PromoVideo";
 import { FAQ, FEATURES, ROLES, RoleKey, STEPS, TRUST } from "./content";
 
 /** The public front page: what the system is, and what it means for each
@@ -18,6 +19,7 @@ export function Landing() {
     <div className="min-h-dvh overflow-x-clip">
       <TopBar />
       <Hero />
+      <PromoVideo />
       <RoleExplorer />
       <HowItWorks />
       <Features />
@@ -42,7 +44,7 @@ function TopBar() {
       <div className="mx-auto flex h-16 max-w-6xl items-center gap-4 px-4 sm:px-6">
         <Link href="/" aria-label="Vidyalaya OS home"><Logo subtitle={false} /></Link>
         <nav aria-label="Page" className="ml-4 hidden items-center gap-1 text-sm font-medium text-soft md:flex">
-          {[["#roles", "Who it's for"], ["#how", "How it works"], ["#features", "Features"], ["#faq", "Questions"], ["#contact", "Contact"]].map(([href, label]) => (
+          {[["#video", "Video"], ["#roles", "Who it's for"], ["#how", "How it works"], ["#features", "Features"], ["#faq", "Questions"], ["#contact", "Contact"]].map(([href, label]) => (
             <a key={href} href={href} className="rounded-lg px-3 py-2 transition hover:bg-muted hover:text-ink">{label}</a>
           ))}
         </nav>
@@ -82,6 +84,9 @@ function Hero() {
             <ButtonLink href="/login" size="lg">Sign in <ArrowRight aria-hidden /></ButtonLink>
             <a href="#roles" className="inline-flex min-h-12 items-center gap-2 rounded-xl border border-line bg-surface px-5 font-medium shadow-xs transition hover:bg-muted">
               What it does for me <ChevronDown className="size-4" aria-hidden />
+            </a>
+            <a href="#video" className="inline-flex min-h-12 items-center gap-2 rounded-xl px-4 font-medium text-brand transition hover:bg-brand-soft">
+              <Play className="size-4 fill-current" aria-hidden /> Watch the video
             </a>
           </div>
           <ul className="mt-8 flex flex-wrap gap-x-6 gap-y-2 text-sm text-soft">
