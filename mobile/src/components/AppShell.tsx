@@ -2,7 +2,7 @@ import { router, usePathname } from "expo-router";
 import { LogOut, Menu, Monitor, Moon, MoreHorizontal, Repeat, Sun, X } from "lucide-react-native";
 import { useEffect, useRef, useState } from "react";
 import { Animated, Easing, Modal, Pressable, ScrollView, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useInsets as useSafeAreaInsets } from "@/lib/insets";
 import { isActive, NavGroup, NavItem } from "@/lib/nav";
 import { useTheme } from "@/lib/theme";
 import { Avatar, IconButton, Press, Txt, useLayout } from "./ui";
@@ -92,14 +92,18 @@ function TabButton({ icon: IconC, label, active, onPress }: { icon: NavItem["ico
   }, [active, pill]);
   const color = active ? c.brand : c.soft;
   return (
-    <Press onPress={onPress} scale={0.9} accessibilityRole="tab" accessibilityState={{ selected: active }} accessibilityLabel={label}
-      style={{ flex: 1, height: 62, alignItems: "center", justifyContent: "center", gap: 3 }}>
-      <View style={{ width: 52, height: 30, alignItems: "center", justifyContent: "center" }}>
-        <Animated.View style={{ position: "absolute", inset: 0, borderRadius: 999, backgroundColor: c.brandSoft, opacity: pill, transform: [{ scaleX: pill.interpolate({ inputRange: [0, 1], outputRange: [0.5, 1] }) }] }} />
-        <IconC size={20} color={color} />
-      </View>
-      <Txt size="xxs" weight={active ? "semibold" : "medium"} color={color} numberOfLines={1} style={{ fontSize: 11, paddingHorizontal: 2 }}>{label}</Txt>
-    </Press>
+    // The outer View takes the tab's share of the row. Press styles the inner
+    // view, where flex: 1 would override the height and collapse the tab.
+    <View style={{ flex: 1 }}>
+      <Press onPress={onPress} scale={0.9} accessibilityRole="tab" accessibilityState={{ selected: active }} accessibilityLabel={label}
+        style={{ height: 62, alignItems: "center", justifyContent: "center", gap: 3 }}>
+        <View style={{ width: 52, height: 30, alignItems: "center", justifyContent: "center" }}>
+          <Animated.View style={{ position: "absolute", inset: 0, borderRadius: 999, backgroundColor: c.brandSoft, opacity: pill, transform: [{ scaleX: pill.interpolate({ inputRange: [0, 1], outputRange: [0.5, 1] }) }] }} />
+          <IconC size={20} color={color} />
+        </View>
+        <Txt size="xxs" weight={active ? "semibold" : "medium"} color={color} numberOfLines={1} style={{ fontSize: 11, paddingHorizontal: 2 }}>{label}</Txt>
+      </Press>
+    </View>
   );
 }
 

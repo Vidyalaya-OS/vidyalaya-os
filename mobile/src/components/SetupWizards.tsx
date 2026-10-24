@@ -6,7 +6,7 @@ import type { Icon } from "@/lib/nav";
 import { FONTS, useTheme } from "@/lib/theme";
 import type { AcademicYear, SchoolClass, Section, Subject, Teacher } from "@/lib/types";
 import { useToast } from "./toast";
-import { Alert, Button, Checkbox, Enter, Field, Grid, IconButton, Press, Pulse, Row, Select, Sheet, Span, Stack, Txt, go } from "./ui";
+import { Alert, Button, Checkbox, Enter, Field, Grid, IconButton, isText, Press, Pulse, Row, Select, Sheet, Span, Stack, Txt, go } from "./ui";
 
 type Data = {
   year: AcademicYear | null;
@@ -50,7 +50,7 @@ function Guideline({ title, children }: { title: string; children: React.ReactNo
   return (
     <View style={{ borderRadius: 14, borderWidth: 1, borderColor: c.brand + "33", backgroundColor: c.brandSoft + "99", paddingHorizontal: 14, paddingVertical: 10 }}>
       <Txt size="sm" weight="semibold">{title}</Txt>
-      {typeof children === "string" ? <Txt size="sm" soft style={{ marginTop: 2 }}>{children}</Txt> : children}
+      {isText(children) ? <Txt size="sm" soft style={{ marginTop: 2 }}>{children}</Txt> : children}
     </View>
   );
 }

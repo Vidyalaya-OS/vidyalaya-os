@@ -6,7 +6,7 @@ import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import { ScrollView, View } from "react-native";
-import { SafeAreaProvider } from "react-native-safe-area-context";
+import { initialWindowMetrics, SafeAreaProvider } from "react-native-safe-area-context";
 import { DialogProvider } from "@/components/dialog";
 import { ToastProvider } from "@/components/toast";
 import { Button, Txt } from "@/components/ui";
@@ -21,7 +21,7 @@ export default function RootLayout() {
   });
   if (!fontsLoaded && !fontError) return null;
   return (
-    <SafeAreaProvider>
+    <SafeAreaProvider initialMetrics={initialWindowMetrics}>
       <ThemeProvider>
         <ToastProvider>
           <DialogProvider>

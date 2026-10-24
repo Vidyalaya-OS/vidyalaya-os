@@ -2,7 +2,7 @@ import * as Haptics from "expo-haptics";
 import { CircleAlert, CircleCheck, Info, X } from "lucide-react-native";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Pressable, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useInsets as useSafeAreaInsets } from "@/lib/insets";
 import { ApiError } from "@/lib/api";
 import { useTheme } from "@/lib/theme";
 import { Txt, useLayout } from "./ui";

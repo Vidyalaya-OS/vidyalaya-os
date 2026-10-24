@@ -11,7 +11,10 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.vidyalaya.os",
       "infoPlist": {
-        "NSAppTransportSecurity": { "NSAllowsArbitraryLoads": true, "NSAllowsLocalNetworking": true }
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true,
+          "NSAllowsLocalNetworking": true
+        }
       }
     },
     "android": {
@@ -40,12 +43,25 @@
           "backgroundColor": "#f4f6fb",
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 120,
-          "dark": { "backgroundColor": "#0b1018", "image": "./assets/images/splash-icon.png" }
+          "dark": {
+            "backgroundColor": "#0b1018",
+            "image": "./assets/images/splash-icon.png"
+          }
         }
       ]
     ],
     "experiments": {
       "typedRoutes": false
+    },
+    "extra": {
+      "router": {
+        "asyncRoutes": {
+          "web": true
+        }
+      },
+      "eas": {
+        "projectId": "b3b50614-13f8-472b-a119-787f93451c18"
+      }
     }
   }
 }

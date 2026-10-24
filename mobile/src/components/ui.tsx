@@ -5,7 +5,7 @@ import {
   ActivityIndicator, Animated, Easing, KeyboardAvoidingView, Modal, Platform, Pressable, RefreshControl, ScrollView,
   StyleProp, Text, TextInput, TextInputProps, TextStyle, View, ViewStyle, useWindowDimensions,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useInsets as useSafeAreaInsets } from "@/lib/insets";
 import type { Icon } from "@/lib/nav";
 import { FONTS, Tone, hashIndex, useTheme } from "@/lib/theme";
 import { clearApiCache } from "@/lib/useApi";
@@ -63,6 +63,14 @@ export function Stack({ children, gap = 12, style }: { children: React.ReactNode
 }
 
 /* -------------------------------------------------------------------- text */
+
+/** True for plain text, including text mixed with values such as
+ * {"No classes on "}{date}, which must be wrapped in a Text on native. */
+export function isText(node: React.ReactNode): boolean {
+  if (typeof node === "string" || typeof node === "number") return true;
+  return Array.isArray(node) && node.length > 0 && node.every((n) => n == null || typeof n === "string" || typeof n === "number" || typeof n === "boolean");
+}
+
 
 const SIZES = { xxs: 11, xs: 13, sm: 15, base: 16, lg: 18, xl: 20, "2xl": 24, "3xl": 30 } as const;
 type Weight = keyof typeof FONTS;
@@ -378,7 +386,7 @@ export function Checkbox({ label, checked, onChange, disabled, style }: { label:
       <View style={{ width: 22, height: 22, borderRadius: 6, borderWidth: 1.5, borderColor: checked ? c.brand : c.soft, backgroundColor: checked ? c.brand : "transparent", alignItems: "center", justifyContent: "center" }}>
         {checked && <Check size={15} color={c.onBrand} strokeWidth={3} />}
       </View>
-      {typeof label === "string" ? <Txt size="sm" style={{ flex: 1 }}>{label}</Txt> : label}
+      {isText(label) ? <Txt size="sm" style={{ flex: 1 }}>{label}</Txt> : label}
     </Pressable>
   );
 }
@@ -414,8 +422,8 @@ export function Card({ title, description, icon: IconC, actions, children, style
               </View>
             )}
             <View style={{ flexShrink: 1 }}>
-              {typeof title === "string" ? <Txt weight="semibold">{title}</Txt> : title}
-              {description != null ? typeof description === "string" ? <Txt size="sm" soft style={{ marginTop: 2 }}>{description}</Txt> : description : null}
+              {isText(title) ? <Txt weight="semibold">{title}</Txt> : title}
+              {description != null ? isText(description) ? <Txt size="sm" soft style={{ marginTop: 2 }}>{description}</Txt> : description : null}
             </View>
           </Row>
           {actions != null && <Row gap={8} wrap>{actions}</Row>}
@@ -445,7 +453,7 @@ export function PageHeader({ title, subtitle, actions, back }: { title: React.Re
       )}
       <View style={{ flexDirection: md ? "row" : "column", alignItems: md ? "flex-end" : "flex-start", justifyContent: "space-between", gap: 12 }}>
         <View style={{ flexShrink: 1 }}>
-          {typeof title === "string" ? <Txt size={md ? "3xl" : "2xl"} weight="bold" style={{ letterSpacing: -0.4 }}>{title}</Txt> : title}
+          {isText(title) ? <Txt size={md ? "3xl" : "2xl"} weight="bold" style={{ letterSpacing: -0.4 }}>{title}</Txt> : title}
           {subtitle != null && (typeof subtitle === "string" ? <Txt size="sm" soft style={{ marginTop: 4 }}>{subtitle}</Txt> : subtitle)}
         </View>
         {actions != null && <Row gap={8} wrap>{actions}</Row>}
@@ -563,7 +571,7 @@ export function Alert({ tone: t = "error", title, children, style }: { tone?: "e
         <IconC size={18} color={t === "info" ? k.fg : k.solid} style={{ marginTop: 1 }} />
         <View style={{ flex: 1 }}>
           {title && <Txt size="sm" weight="semibold" color={t === "info" ? undefined : k.fg}>{title}</Txt>}
-          {typeof children === "string" ? <Txt size="sm" color={t === "info" ? undefined : k.fg}>{children}</Txt> : children}
+          {isText(children) ? <Txt size="sm" color={t === "info" ? undefined : k.fg}>{children}</Txt> : children}
         </View>
       </View>
     </Enter>
@@ -598,7 +606,7 @@ export function Empty({ children, title, icon: IconC = Inbox, action }: { childr
           <IconC size={24} color={c.soft} />
         </View>
         {title && <Txt weight="semibold" center>{title}</Txt>}
-        {children != null && (typeof children === "string" ? <Txt size="sm" soft center style={{ marginTop: title ? 4 : 0, maxWidth: 360 }}>{children}</Txt> : children)}
+        {children != null && (isText(children) ? <Txt size="sm" soft center style={{ marginTop: title ? 4 : 0, maxWidth: 360 }}>{children}</Txt> : children)}
         {action != null && <View style={{ marginTop: 14 }}>{action}</View>}
       </View>
     </Enter>

@@ -2,7 +2,7 @@ import { router } from "expo-router";
 import { BookOpen, CalendarDays, ClipboardCheck, Server, Wallet } from "lucide-react-native";
 import { useState } from "react";
 import { Pressable, ScrollView, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useInsets as useSafeAreaInsets } from "@/lib/insets";
 import { api, errorMessage } from "@/lib/api";
 import { defaultServer, isCustomServer, serverUrl, setServer } from "@/lib/server";
 import { useTheme } from "@/lib/theme";

@@ -2,7 +2,7 @@ import { router } from "expo-router";
 import { ArrowRight, Check, ChevronDown, LogIn, Mail, Play, Sparkles } from "lucide-react-native";
 import { useRef, useState } from "react";
 import { Animated, Easing, LayoutAnimation, Linking, Pressable, ScrollView, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useInsets as useSafeAreaInsets } from "@/lib/insets";
 import Svg, { Defs, RadialGradient, Rect, Stop } from "react-native-svg";
 import { CONTACT, contactLinks } from "@/lib/contact";
 import { useTheme } from "@/lib/theme";
