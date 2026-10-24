@@ -111,7 +111,7 @@ function Hero() {
 }
 
 function RoleExplorer() {
-  const [role, setRole] = useState<RoleKey>("parent");
+  const [role, setRole] = useState<RoleKey>("owner");
   useEffect(() => {
     // Links like /#role-teacher open on that role.
     const fromHash = () => {

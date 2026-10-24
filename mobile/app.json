@@ -1,0 +1,51 @@
+{
+  "expo": {
+    "name": "Vidyalaya OS",
+    "slug": "vidyalaya-os",
+    "version": "1.0.0",
+    "orientation": "default",
+    "icon": "./assets/images/icon.png",
+    "scheme": "vidyalaya",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.vidyalaya.os",
+      "infoPlist": {
+        "NSAppTransportSecurity": { "NSAllowsArbitraryLoads": true, "NSAllowsLocalNetworking": true }
+      }
+    },
+    "android": {
+      "package": "com.vidyalaya.os",
+      "adaptiveIcon": {
+        "backgroundColor": "#eef3ff",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "backgroundImage": "./assets/images/android-icon-background.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+      },
+      "usesCleartextTraffic": true,
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "output": "static",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-font",
+      "@react-native-community/datetimepicker",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#f4f6fb",
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 120,
+          "dark": { "backgroundColor": "#0b1018", "image": "./assets/images/splash-icon.png" }
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": false
+    }
+  }
+}
