@@ -6,7 +6,7 @@ import { AuthLayout } from "@/components/AuthLayout";
 import { Alert, Button, Enter, Field, Row, Stack, Txt } from "@/components/ui";
 import { api, errorMessage, Session } from "@/lib/api";
 import { useAppConfig } from "@/lib/config";
-import { useSession } from "@/lib/session";
+import { homePath, useSession } from "@/lib/session";
 import { useTheme } from "@/lib/theme";
 
 /** An email address, or a phone number of at least 7 digits. */
@@ -42,8 +42,10 @@ export default function Login() {
 
   const finish = (session: Session) => {
     signIn(session);
-    const only = session.memberships.length === 1 && !session.user.is_platform_owner;
-    router.replace(only ? "/app" : session.user.is_platform_owner && session.memberships.length === 0 ? "/platform" : "/choose-school");
+    // Each role has its own screens: the owner goes to the platform, school
+    // staff, students and parents to their portal, and people in several
+    // schools choose one first.
+    router.replace(homePath(session));
   };
 
   const run = async (fn: () => Promise<void>) => {
@@ -148,6 +150,9 @@ export default function Login() {
               {identifierField}
               <Field label="Password" icon={KeyRound} password autoComplete="current-password" textContentType="password" value={password} onChangeText={setPassword} onSubmitEditing={submitPassword} returnKeyType="go" />
               <Button size="lg" busy={busy} full disabled={!password} onPress={submitPassword}>Sign in</Button>
+              <Pressable onPress={() => router.push({ pathname: "/forgot-password", params: identifier.trim() ? { identifier: identifier.trim() } : {} })} style={{ alignSelf: "center" }}>
+                <Txt size="sm" weight="semibold" color={c.brand}>Forgot password?</Txt>
+              </Pressable>
               <Pressable onPress={() => switchMode("code")} style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 12, borderRadius: 14, borderWidth: 1, borderStyle: "dashed", borderColor: pressed ? c.brand : c.line, padding: 12, backgroundColor: pressed ? c.brandSoft : "transparent" })}>
                 <HeartHandshake size={20} color={c.brand} />
                 <Txt size="sm" style={{ flex: 1 }}><Txt size="sm" weight="bold">Parent? </Txt><Txt size="sm" soft>Skip the password: sign in with a code we send to your phone or email.</Txt></Txt>

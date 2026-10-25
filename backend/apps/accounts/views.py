@@ -10,7 +10,7 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from . import audit, notify
+from . import audit, notify, services
 from .models import Invite, OneTimeCode, Role, SchoolMembership, User
 from .permissions import roles_in_current_school
 from .serializers import (
@@ -19,7 +19,9 @@ from .serializers import (
     LoginSerializer,
     OtpRequestSerializer,
     OtpVerifySerializer,
+    PasswordResetRequestSerializer,
     UserSerializer,
+    home_for,
     memberships_for,
     session_payload,
 )
@@ -71,10 +73,12 @@ class MeView(APIView):
                 "status": request.school.status,
                 "roles": sorted(roles_in_current_school(request)),
             }
+        memberships = memberships_for(request.user)
         return Response(
             {
                 "user": UserSerializer(request.user).data,
-                "memberships": memberships_for(request.user),
+                "memberships": memberships,
+                "home": home_for(request.user, memberships),
                 "current_school": current,
             }
         )
@@ -125,6 +129,62 @@ class InviteView(APIView):
         invite.used_at = timezone.now()
         invite.save(update_fields=["used_at"])
         audit.record(user, "user.accept_invite", "user", user.pk, school=invite.school)
+        return Response(session_payload(user))
+
+
+class PasswordResetRequestView(APIView):
+    """Forgot password: send a link to choose a new one to the person's email
+    or phone. Someone who never set a password gets their invite again."""
+
+    permission_classes = [AllowAny]
+    authentication_classes = []
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "login"
+
+    def post(self, request):
+        data = PasswordResetRequestSerializer(data=request.data)
+        data.is_valid(raise_exception=True)
+        user = User.objects.find_by_identifier(data.validated_data["identifier"])
+        if user is not None and user.is_active:
+            services.send_login_link(user)
+        # Same answer either way, so the form does not reveal who is registered.
+        return Response({"detail": "If this account exists, a link to choose a new password is on its way."})
+
+
+class PasswordResetView(APIView):
+    """Open a reset link (GET), then choose a new password (POST). Other
+    devices are signed out."""
+
+    permission_classes = [AllowAny]
+    authentication_classes = []
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "invite"
+
+    @staticmethod
+    def find(token):
+        reset = Invite.find_open(token, Invite.Purpose.RESET)
+        return reset if reset is not None and reset.user.is_active else None
+
+    def get(self, request, token):
+        reset = self.find(token)
+        if reset is None:
+            return Response({"detail": "This reset link is invalid or has expired."}, status=404)
+        return Response({"name": reset.user.name, "email": reset.user.email, "phone": reset.user.phone})
+
+    @transaction.atomic
+    def post(self, request, token):
+        reset = self.find(token)
+        if reset is None:
+            return Response({"detail": "This reset link is invalid or has expired."}, status=404)
+        user = reset.user
+        data = AcceptInviteSerializer(data=request.data, context={"user": user})
+        data.is_valid(raise_exception=True)
+        user.set_password(data.validated_data["password"])
+        user.save(update_fields=["password", "updated_at"])
+        reset.used_at = timezone.now()
+        reset.save(update_fields=["used_at"])
+        services.sign_out_everywhere(user)
+        audit.record(user, "user.reset_password", "user", user.pk, school=reset.school)
         return Response(session_payload(user))
 
 

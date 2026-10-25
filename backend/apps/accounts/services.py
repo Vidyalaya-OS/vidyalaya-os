@@ -1,4 +1,5 @@
 from django.db import transaction
+from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
 from apps.tenancy import context
@@ -57,3 +58,29 @@ def send_invite(user, school=None):
     _, token = Invite.issue(user, school)
     transaction.on_commit(lambda: notify.send_invite(user, token, school))
     return True
+
+
+def send_password_reset(user, school=None):
+    """Send a link to choose a new password. Returns True if sent."""
+    if not (user.email or user.phone) or not user.is_active:
+        return False
+    _, token = Invite.issue(user, school, purpose=Invite.Purpose.RESET)
+    transaction.on_commit(lambda: notify.send_password_reset(user, token))
+    return True
+
+
+def send_login_link(user, school=None):
+    """Help someone sign in without anyone else knowing their password: an
+    invite if they never chose one, a reset link otherwise. Returns "invite",
+    "reset", or None when there is no email or phone to send to."""
+    if user.has_usable_password() and user.status == User.Status.ACTIVE:
+        return "reset" if send_password_reset(user, school) else None
+    return "invite" if send_invite(user, school) else None
+
+
+def sign_out_everywhere(user):
+    """Cancel every refresh token the person holds, so other devices must sign in again."""
+    from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
+
+    for token in OutstandingToken.objects.filter(user=user, expires_at__gt=timezone.now()):
+        BlacklistedToken.objects.get_or_create(token=token)

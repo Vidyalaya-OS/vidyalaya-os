@@ -69,6 +69,33 @@ class PlatformSchoolViewSet(
     def archive(self, request, pk=None):
         return self._set_status(request, School.Status.ARCHIVED)
 
+    @action(detail=True, methods=["get", "post"])
+    def admins(self, request, pk=None):
+        """The school's admins (GET), or add one by name and email (POST): the
+        owner creates a school's admin logins without ever knowing a password."""
+        from apps.people.serializers import AdminSerializer
+
+        school = self.get_object()
+        if request.method == "POST":
+            data = AdminSerializer(data=request.data)
+            data.is_valid(raise_exception=True)
+            membership = services.add_admin(school, data.validated_data["user"], actor=request.user)
+            return Response(AdminSerializer(membership).data, status=status.HTTP_201_CREATED)
+        return Response(AdminSerializer(services.school_admins(school), many=True).data)
+
+    @action(detail=True, methods=["delete"], url_path=r"admins/(?P<user_id>[0-9a-f-]+)")
+    def remove_admin(self, request, pk=None, user_id=None):
+        services.remove_admin(self.get_object(), user_id, actor=request.user)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=True, methods=["post"], url_path=r"admins/(?P<user_id>[0-9a-f-]+)/send-login-link")
+    def admin_login_link(self, request, pk=None, user_id=None):
+        """An invite if the admin never set a password, a reset link otherwise."""
+        sent = services.send_admin_login_link(self.get_object(), user_id, actor=request.user)
+        if sent is None:
+            return Response({"sent": None, "detail": "They have no email or phone, or their login is switched off."})
+        return Response({"sent": sent})
+
     @action(detail=True, methods=["post"], url_path="resend-admin-invite")
     def resend_admin_invite(self, request, pk=None):
         sent = services.resend_admin_invite(self.get_object())

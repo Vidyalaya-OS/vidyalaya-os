@@ -2,7 +2,7 @@
 admin invites. Each one is recorded in the audit log."""
 
 from django.db import transaction
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import NotFound, ValidationError
 
 from apps.accounts import audit
 from apps.accounts import services as accounts
@@ -62,3 +62,52 @@ def resend_admin_invite(school):
         raise ValidationError({"detail": "This school has no admin."})
     with context.school_context(school):
         return accounts.send_invite(membership.user, school)
+
+
+def school_admins(school):
+    """The school's active admins, oldest first."""
+    with context.school_context(school):
+        return list(SchoolMembership.objects.filter(role=Role.ADMIN, is_active=True).select_related("user")
+                    .order_by("created_at"))
+
+
+@transaction.atomic
+def add_admin(school, person, *, actor):
+    """Make a person (name, email, phone) an admin of the school. Someone new
+    is sent an invite; someone who already has a login keeps their password."""
+    with context.school_context(school):
+        user, _ = accounts.find_or_create_user(person["name"], person["email"], person.get("phone"))
+        membership = accounts.grant_role(user, Role.ADMIN)
+        accounts.send_invite(user, school)
+        audit.record(actor, "admin.create", "user", user.pk, school=school)
+    return membership
+
+
+def _admin(school, user_id):
+    membership = (SchoolMembership.objects.filter(role=Role.ADMIN, is_active=True, user_id=user_id)
+                  .select_related("user").first())
+    if membership is None:
+        raise NotFound("This person is not an admin of the school.")
+    return membership
+
+
+@transaction.atomic
+def remove_admin(school, user_id, *, actor):
+    """Take admin rights away. Their login and other roles stay."""
+    with context.school_context(school):
+        membership = _admin(school, user_id)
+        if SchoolMembership.objects.filter(role=Role.ADMIN, is_active=True).count() == 1:
+            raise ValidationError({"detail": "A school needs at least one admin."})
+        membership.is_active = False
+        membership.save(update_fields=["is_active", "updated_at"])
+        audit.record(actor, "admin.remove", "user", user_id, school=school)
+
+
+def send_admin_login_link(school, user_id, *, actor):
+    """An invite or a password reset link for one of the school's admins."""
+    with context.school_context(school):
+        membership = _admin(school, user_id)
+        sent = accounts.send_login_link(membership.user, school)
+        if sent:
+            audit.record(actor, "admin.send_login_link", "user", user_id, after={"link": sent}, school=school)
+    return sent

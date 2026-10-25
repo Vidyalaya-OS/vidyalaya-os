@@ -27,6 +27,10 @@ def invite_url(token):
     return f"{settings.WEB_APP_URL.rstrip('/')}/invite/{token}"
 
 
+def reset_url(token):
+    return f"{settings.WEB_APP_URL.rstrip('/')}/reset-password/{token}"
+
+
 def send_invite(user, token, school=None):
     where = f"{school.name} on {settings.APP_NAME}" if school else settings.APP_NAME
     message = (
@@ -40,3 +44,14 @@ def send_invite(user, token, school=None):
 def send_login_code(user, code):
     message = f"Your {settings.APP_NAME} login code is {code}. It expires in 10 minutes."
     _deliver(user, f"Your {settings.APP_NAME} login code", message)
+
+
+def send_password_reset(user, token):
+    minutes = settings.PASSWORD_RESET_VALID_MINUTES
+    message = (
+        f"Hello {user.name},\n\n"
+        f"Choose a new {settings.APP_NAME} password here:\n{reset_url(token)}\n\n"
+        f"The link works once, for {minutes} minutes. If you did not ask for it, ignore this message; "
+        f"your password stays the same."
+    )
+    _deliver(user, f"Reset your {settings.APP_NAME} password", message)

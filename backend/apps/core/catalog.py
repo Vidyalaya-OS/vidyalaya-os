@@ -47,6 +47,7 @@ def app_config():
         "roles": [{"key": k, "label": label} for k, label in Role.choices],
         "payment_modes": [{"key": k, "label": label} for k, label in Payment.Mode.choices],
         "invite_valid_days": settings.INVITE_VALID_DAYS,
+        "password_reset_valid_minutes": settings.PASSWORD_RESET_VALID_MINUTES,
         "login_code": {"digits": 6, "valid_minutes": OneTimeCode.VALID_MINUTES, "roles": [Role.PARENT]},
         "demo": None,
     }

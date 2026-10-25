@@ -127,13 +127,19 @@ def _hash(token):
 
 
 class Invite(models.Model):
-    """A one-time link that lets an invited user set their password.
+    """A one-time link that lets a person choose their password: an invite
+    for someone new, or a reset link for someone who forgot theirs.
 
     Not school-scoped (the person opening the link is not logged in yet);
     only a hash of the token is stored.
     """
 
+    class Purpose(models.TextChoices):
+        INVITE = "invite", "Invite"
+        RESET = "reset", "Password reset"
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    purpose = models.CharField(max_length=10, choices=Purpose.choices, default=Purpose.INVITE)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="invites")
     school = models.ForeignKey(School, on_delete=models.CASCADE, null=True, blank=True, related_name="+")
     token_hash = models.CharField(max_length=64, unique=True)
@@ -145,23 +151,30 @@ class Invite(models.Model):
         db_table = "invites"
 
     @classmethod
-    def issue(cls, user, school=None):
-        """Create an invite and return (invite, raw_token). Older open invites are closed."""
+    def issue(cls, user, school=None, purpose=Purpose.INVITE):
+        """Create a link and return (invite, raw_token). Older open links are closed.
+
+        Invites last INVITE_VALID_DAYS; reset links only PASSWORD_RESET_VALID_MINUTES.
+        """
         cls.objects.filter(user=user, used_at__isnull=True).update(used_at=timezone.now())
         token = secrets.token_urlsafe(32)
+        valid = (timedelta(minutes=settings.PASSWORD_RESET_VALID_MINUTES) if purpose == cls.Purpose.RESET
+                 else timedelta(days=settings.INVITE_VALID_DAYS))
         invite = cls.objects.create(
             user=user,
             school=school,
+            purpose=purpose,
             token_hash=_hash(token),
-            expires_at=timezone.now() + timedelta(days=settings.INVITE_VALID_DAYS),
+            expires_at=timezone.now() + valid,
         )
         return invite, token
 
     @classmethod
-    def find_open(cls, token):
+    def find_open(cls, token, purpose=Purpose.INVITE):
         return (
             cls.objects.select_related("user", "school")
-            .filter(token_hash=_hash(token or ""), used_at__isnull=True, expires_at__gt=timezone.now())
+            .filter(token_hash=_hash(token or ""), purpose=purpose, used_at__isnull=True,
+                    expires_at__gt=timezone.now())
             .first()
         )
 

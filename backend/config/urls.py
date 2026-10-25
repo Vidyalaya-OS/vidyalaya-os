@@ -53,6 +53,8 @@ auth = [
     path("me", accounts.MeView.as_view(), name="me"),
     path("password", accounts.ChangePasswordView.as_view(), name="change-password"),
     path("invites/<str:token>", accounts.InviteView.as_view(), name="invite"),
+    path("password-reset", accounts.PasswordResetRequestView.as_view(), name="password-reset-request"),
+    path("password-reset/<str:token>", accounts.PasswordResetView.as_view(), name="password-reset"),
     path("otp/request", accounts.OtpRequestView.as_view(), name="otp-request"),
     path("otp/verify", accounts.OtpVerifyView.as_view(), name="otp-verify"),
 ]

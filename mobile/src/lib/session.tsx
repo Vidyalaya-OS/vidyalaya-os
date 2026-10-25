@@ -1,6 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { api, Membership, Role, Session, storage, User } from "./api";
+import { api, Home, Membership, Role, Session, storage, User } from "./api";
 import { loadServer } from "./server";
 import { clearApiCache } from "./useApi";
 
@@ -59,9 +59,17 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     storage.setSession(s);
     setSession(s);
     setExpired(false);
-    const only = s.memberships.length === 1 && !s.user.is_platform_owner ? s.memberships[0].school.subdomain : null;
+    // Open the school and portal the API picked for this login, so an admin
+    // lands in the admin portal, a parent in the parent portal, and so on.
+    const home = s.home;
+    const only = home ? (home.kind === "school" ? home.school : null)
+      : s.memberships.length === 1 && !s.user.is_platform_owner ? s.memberships[0].school.subdomain : null;
     storage.setSchool(only);
     setSubdomain(only);
+    if (home?.role) {
+      setSavedPortal(home.role);
+      AsyncStorage.setItem(PORTAL_KEY, home.role).catch(() => {});
+    }
   }, []);
 
   const signOut = useCallback(async () => {
@@ -83,8 +91,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const reload = useCallback(async () => {
     const s = storage.session();
     if (!s) return;
-    const me = await api<{ user: User; memberships: Membership[] }>("auth/me", { school: null });
-    const next = { ...s, user: me.user, memberships: me.memberships };
+    const me = await api<{ user: User; memberships: Membership[]; home?: Home }>("auth/me", { school: null });
+    const next = { ...s, user: me.user, memberships: me.memberships, home: me.home };
     storage.setSession(next);
     setSession(next);
   }, []);
@@ -122,6 +130,17 @@ export function useSession() {
   const ctx = useContext(SessionContext);
   if (!ctx) throw new Error("useSession must be used inside SessionProvider");
   return ctx;
+}
+
+/** The first screen for a login: the platform for the owner, the school
+ * portal for someone in one school, otherwise the school picker. */
+export function homePath(s: Session): "/platform" | "/app" | "/choose-school" {
+  const kind = s.home?.kind
+    ?? (s.user.is_platform_owner && s.memberships.length === 0 ? "platform"
+      : s.memberships.length === 1 && !s.user.is_platform_owner ? "school" : "choose_school");
+  if (kind === "platform") return "/platform";
+  if (kind === "school") return "/app";
+  return "/choose-school";
 }
 
 export const ROLE_LABELS: Record<Role, string> = {

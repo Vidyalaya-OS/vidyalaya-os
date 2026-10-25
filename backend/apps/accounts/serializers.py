@@ -5,7 +5,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from apps.tenancy import context
 from apps.tenancy.models import School
 
-from .models import SchoolMembership, User
+from .models import Role, SchoolMembership, User
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -42,19 +42,44 @@ def memberships_for(user):
     return list(schools.values())
 
 
+# A person with several roles in one school starts in the first of these.
+ROLE_ORDER = [Role.ADMIN, Role.TEACHER, Role.STUDENT, Role.PARENT]
+
+
+def home_for(user, memberships):
+    """Where the apps open after sign-in, so each kind of account lands on its
+    own screens: the owner's platform portal, the one school a person belongs
+    to (in their first role there), or the school picker."""
+    if user.is_platform_owner and not memberships:
+        return {"kind": "platform", "school": None, "role": None}
+    if len(memberships) == 1 and not user.is_platform_owner:
+        entry = memberships[0]
+        role = next((r.value for r in ROLE_ORDER if r.value in entry["roles"]), None)
+        return {"kind": "school", "school": entry["school"]["subdomain"], "role": role}
+    if memberships or user.is_platform_owner:
+        return {"kind": "choose_school", "school": None, "role": None}
+    return {"kind": "none", "school": None, "role": None}
+
+
 def session_payload(user):
     refresh = RefreshToken.for_user(user)
+    memberships = memberships_for(user)
     return {
         "access": str(refresh.access_token),
         "refresh": str(refresh),
         "user": UserSerializer(user).data,
-        "memberships": memberships_for(user),
+        "memberships": memberships,
+        "home": home_for(user, memberships),
     }
 
 
 class LoginSerializer(serializers.Serializer):
     identifier = serializers.CharField(help_text="Email or phone number.")
     password = serializers.CharField(trim_whitespace=False)
+
+
+class PasswordResetRequestSerializer(serializers.Serializer):
+    identifier = serializers.CharField(help_text="Email or phone number.")
 
 
 class OtpRequestSerializer(serializers.Serializer):

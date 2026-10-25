@@ -13,7 +13,15 @@ export type User = {
   status: string;
   is_platform_owner: boolean;
 };
-export type Session = { access: string; refresh: string; user: User; memberships: Membership[] };
+/** Where the API says this person lands after signing in. */
+export type Home = {
+  kind: "platform" | "school" | "choose_school" | "none";
+  /** The school's subdomain when kind is "school". */
+  school: string | null;
+  /** The portal to open first when kind is "school". */
+  role: Role | null;
+};
+export type Session = { access: string; refresh: string; user: User; memberships: Membership[]; home?: Home };
 
 export type Page<T> = { count: number; next: string | null; previous: string | null; results: T[] };
 

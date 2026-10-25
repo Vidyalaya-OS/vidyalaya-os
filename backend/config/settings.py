@@ -189,6 +189,8 @@ SCHOOL_TIMEZONES = env_list("SCHOOL_TIMEZONES")
 
 # Invite links stay valid for this many days.
 INVITE_VALID_DAYS = int(env("INVITE_VALID_DAYS", "7"))
+# "Forgot password" links stay valid for this many minutes.
+PASSWORD_RESET_VALID_MINUTES = int(env("PASSWORD_RESET_VALID_MINUTES", "60"))
 
 # The product name used in emails and given to the web app (GET /api/config).
 APP_NAME = env("APP_NAME", "Vidyalaya OS")

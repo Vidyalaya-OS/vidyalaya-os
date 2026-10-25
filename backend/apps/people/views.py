@@ -62,6 +62,18 @@ class RegistrationViewSet(
             return Response({"sent": False, "detail": reason})
         return Response({"sent": True})
 
+    @action(detail=True, methods=["post"], url_path="send-login-link")
+    def send_login_link(self, request, pk=None):
+        """Help a person sign in: an invite if they never set a password, a
+        reset link if they forgot it. Nobody else ever sees their password."""
+        obj = self.get_object()
+        sent = services.send_login_link(obj.user)
+        if sent is None:
+            return Response({"sent": None, "detail": "They have no email or phone, or their login is switched off."})
+        audit.record(request.user, f"{obj._meta.model_name}.send_login_link", obj._meta.model_name, obj.pk,
+                     after={"link": sent})
+        return Response({"sent": sent})
+
 
 class StudentViewSet(RegistrationViewSet):
     """Admins register and manage students. Teachers see students in their
@@ -289,6 +301,16 @@ class AdminViewSet(viewsets.ViewSet):
         services.send_invite(user)
         audit.record(request.user, "admin.create", "user", user.pk)
         return Response(AdminSerializer(membership).data, status=201)
+
+    @action(detail=True, methods=["post"], url_path="send-login-link")
+    def send_login_link(self, request, pk=None):
+        """An invite or a password reset link for another admin (pk is their user id)."""
+        membership = get_object_or_404(self._rows(), user_id=pk)
+        sent = services.send_login_link(membership.user)
+        if sent is None:
+            return Response({"sent": None, "detail": "They have no email or phone, or their login is switched off."})
+        audit.record(request.user, "admin.send_login_link", "user", pk, after={"link": sent})
+        return Response({"sent": sent})
 
     @transaction.atomic
     def destroy(self, request, pk=None):

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { AuthLayout } from "@/components/AuthLayout";
 import { Alert, Button, Field, PageLoader, Stack, Txt } from "@/components/ui";
 import { api, errorMessage, Session } from "@/lib/api";
-import { useSession } from "@/lib/session";
+import { homePath, useSession } from "@/lib/session";
 
 type InviteInfo = { name: string; email: string | null; phone: string | null; school: string | null };
 
@@ -29,8 +29,9 @@ export default function InvitePage() {
     setBusy(true);
     setError(null);
     try {
-      signIn(await api<Session>(`auth/invites/${token}`, { method: "POST", body: { password }, auth: false, school: null }));
-      router.replace("/");
+      const session = await api<Session>(`auth/invites/${token}`, { method: "POST", body: { password }, auth: false, school: null });
+      signIn(session);
+      router.replace(homePath(session));
     } catch (err) {
       setError(errorMessage(err, "Could not set your password."));
     } finally {

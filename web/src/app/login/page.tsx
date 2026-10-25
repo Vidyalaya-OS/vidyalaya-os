@@ -8,7 +8,7 @@ import { AuthLayout } from "@/components/AuthLayout";
 import { Alert, Button, Field, PageLoader, cx } from "@/components/ui";
 import { api, ApiError, Session } from "@/lib/api";
 import { useAppConfig } from "@/lib/config";
-import { useSession } from "@/lib/session";
+import { landingPath, useSession } from "@/lib/session";
 
 export default function LoginPage() {
   return (
@@ -61,8 +61,10 @@ function Login() {
 
   const finish = (session: Session) => {
     signIn(session);
-    // The school a returning person was in is chosen again on the next screen.
-    router.replace(next.startsWith("/app") && session.memberships.length > 1 ? "/choose-school" : next);
+    // Each role has its own screens: the owner goes to the platform, school
+    // staff, students and parents to their portal, and people in several
+    // schools choose one first.
+    router.replace(landingPath(session, next));
   };
 
   const run = async (fn: () => Promise<void>) => {
@@ -175,6 +177,9 @@ function Login() {
               </button>
             </div>
             <Button type="submit" size="lg" busy={busy} className="w-full" disabled={!password}>Sign in</Button>
+            <p className="text-center text-sm">
+              <Link href={`/forgot-password${identifier.trim() ? `?identifier=${encodeURIComponent(identifier.trim())}` : ""}`} className="font-medium text-brand hover:underline">Forgot password?</Link>
+            </p>
             <button type="button" onClick={() => switchMode("code")} className="flex w-full items-center gap-3 rounded-xl border border-dashed border-line p-3 text-left text-sm transition hover:border-brand/50 hover:bg-brand-soft/40">
               <HeartHandshake className="size-5 shrink-0 text-brand" aria-hidden />
               <span><strong>Parent?</strong> <span className="text-soft">Skip the password: sign in with a code we send to your phone or email.</span></span>
