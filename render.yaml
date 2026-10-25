@@ -39,3 +39,11 @@ services:
         value: "60/min"
       - key: DJANGO_TIME_ZONE
         value: Asia/Kolkata
+      # Real email: links in invites and password resets point here (your
+      # Vercel address), and Brevo sends them. Fill these in on the dashboard.
+      - key: WEB_APP_URL
+        sync: false
+      - key: BREVO_API_KEY
+        sync: false
+      - key: DEFAULT_FROM_EMAIL
+        sync: false

@@ -195,8 +195,20 @@ PASSWORD_RESET_VALID_MINUTES = int(env("PASSWORD_RESET_VALID_MINUTES", "60"))
 # The product name used in emails and given to the web app (GET /api/config).
 APP_NAME = env("APP_NAME", "Vidyalaya OS")
 
-EMAIL_BACKEND = env("EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend")
+# Email. Development prints messages to the console. For real delivery set
+# BREVO_API_KEY (sends over HTTPS, which works on hosts that block SMTP, such as
+# Render's free plan), or EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
+# with the EMAIL_HOST_* values below.
+BREVO_API_KEY = env("BREVO_API_KEY", "")
+EMAIL_BACKEND = env("EMAIL_BACKEND", "apps.accounts.email.BrevoBackend" if BREVO_API_KEY
+                    else "django.core.mail.backends.console.EmailBackend")
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", "Vidyalaya OS <no-reply@localhost>")
+EMAIL_HOST = env("EMAIL_HOST", "localhost")
+EMAIL_PORT = int(env("EMAIL_PORT", "587"))
+EMAIL_HOST_USER = env("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", "")
+EMAIL_USE_TLS = env_bool("EMAIL_USE_TLS", True)
+EMAIL_TIMEOUT = 20
 
 # Origins allowed to call the API from a browser (the web app).
 CORS_ALLOWED_ORIGINS = env_list("CORS_ALLOWED_ORIGINS", "http://localhost:3000")
