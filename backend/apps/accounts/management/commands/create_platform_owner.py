@@ -23,8 +23,15 @@ class Command(BaseCommand):
         parser.add_argument("--email", required=True, help="The owner's email address; also their login.")
         parser.add_argument("--name", required=True, help="The owner's full name.")
         parser.add_argument("--phone", default="", help="Optional phone number.")
+        parser.add_argument("--if-missing", action="store_true",
+                            help="Do nothing if this person is already an owner (used at every server start).")
 
     def handle(self, *args, **options):
+        if options["if_missing"]:
+            existing = User.objects.find_by_identifier(options["email"])
+            if existing is not None and existing.is_platform_owner:
+                self.stdout.write(f"Platform owner {options['email']} already exists.")
+                return
         try:
             with transaction.atomic():
                 user, created = services.find_or_create_user(options["name"], options["email"], options["phone"])

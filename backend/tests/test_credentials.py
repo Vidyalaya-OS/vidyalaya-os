@@ -188,3 +188,13 @@ class CreatePlatformOwnerTests(ApiTestCase):
         call_command("create_platform_owner", email="boss@platform.test", name="Boss", stdout=out)
         self.assertIn("/reset-password/", out.getvalue())
         self.assertEqual(User.objects.filter(email="boss@platform.test").count(), 1)
+
+    def test_if_missing_runs_once(self):
+        with self.captureOnCommitCallbacks(execute=True):
+            call_command("create_platform_owner", "--if-missing", email="boss@platform.test", name="Boss",
+                         stdout=StringIO())
+            out = StringIO()
+            call_command("create_platform_owner", "--if-missing", email="boss@platform.test", name="Boss",
+                         stdout=out)
+        self.assertIn("already exists", out.getvalue())
+        self.assertEqual(len(mail.outbox), 1)
