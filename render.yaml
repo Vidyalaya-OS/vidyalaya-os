@@ -1,14 +1,7 @@
-# Render Blueprint for the Vidyalaya OS API and its PostgreSQL database.
-# In Render: New > Blueprint, pick this repository, Apply. The web app runs on
-# Vercel (see DEPLOY.md) and forwards /api to this service.
-databases:
-  - name: vidyalaya-db
-    plan: free
-    region: singapore
-    postgresMajorVersion: "16"
-    databaseName: vidyalaya
-    user: vidyalaya
-
+# Render Blueprint for the Vidyalaya OS API. The database is on Neon (free,
+# no expiry): set DATABASE_URL on the dashboard to Neon's direct connection URL
+# for the sms_app role. The web app runs on Vercel (see DEPLOY.md) and
+# forwards /api to this service.
 services:
   - type: web
     name: vidyalaya-api
@@ -23,9 +16,7 @@ services:
       - key: PYTHON_VERSION
         value: "3.12.8"
       - key: DATABASE_URL
-        fromDatabase:
-          name: vidyalaya-db
-          property: connectionString
+        sync: false
       - key: DJANGO_SECRET_KEY
         generateValue: true
       - key: DJANGO_DEBUG
