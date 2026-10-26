@@ -21,6 +21,26 @@ function message(e: unknown) {
   return e instanceof ApiError ? e.message : "Could not reach the server. Check your connection and try again.";
 }
 
+/** The next class to add, following the school's naming: Grade 1, Grade 2…
+ * It fills a gap first, so a deleted Grade 3 is offered again. */
+export function nextClass(classes: SchoolClass[]) {
+  const named = classes.map((x) => x.name.match(/^(.*?)\s*(\d+)$/)).filter((m): m is RegExpMatchArray => !!m);
+  const prefix = named[0]?.[1].trim() || "Grade";
+  const taken = new Set(named.filter((m) => m[1].trim() === prefix).map((m) => Number(m[2])));
+  let n = 1;
+  while (taken.has(n)) n++;
+  return { name: `${prefix} ${n}`, order: n, prefix };
+}
+
+/** A class's place in lists and promotions, taken from its number:
+ * Grade 6 is 6. A name without a number goes after the last class. */
+export function orderFor(name: string, classes: SchoolClass[]) {
+  const n = name.match(/(\d+)\s*$/)?.[1];
+  return n ? Number(n) : Math.max(0, ...classes.map((x) => x.order)) + 1;
+}
+
+const DEFAULT_SECTIONS = ["A", "B", "C"].map((name) => ({ name, teacher: "" }));
+
 /** Numbered steps across the top of a wizard. */
 function Stepper({ steps, at }: { steps: string[]; at: number }) {
   const { c, tone } = useTheme();
@@ -94,18 +114,17 @@ export function NewClassWizard({ open, onClose, data }: { open: boolean; onClose
   const [at, setAt] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [name, setName] = useState("");
-  const [order, setOrder] = useState("");
+  const [name, setName] = useState(() => nextClass(data.classes).name);
   const [created, setCreated] = useState<SchoolClass | null>(null);
-  const [sectionRows, setSectionRows] = useState<{ name: string; teacher: string }[]>([{ name: "A", teacher: "" }]);
+  const [sectionRows, setSectionRows] = useState<{ name: string; teacher: string }[]>(DEFAULT_SECTIONS);
   const [madeSections, setMadeSections] = useState<Section[]>([]);
   const [chosen, setChosen] = useState<string[]>([]);
   const [allocation, setAllocation] = useState<Record<string, string>>({});
   const toast = useToast();
 
   const reset = () => {
-    setAt(0); setError(null); setName(""); setOrder(""); setCreated(null);
-    setSectionRows([{ name: "A", teacher: "" }]); setMadeSections([]); setChosen([]); setAllocation({});
+    setAt(0); setError(null); setCreated(null);
+    setSectionRows(DEFAULT_SECTIONS); setMadeSections([]); setChosen([]); setAllocation({});
   };
   const close = () => {
     if (created) data.reload();
@@ -125,7 +144,7 @@ export function NewClassWizard({ open, onClose, data }: { open: boolean; onClose
   };
 
   const saveName = () => run(async () => {
-    const made = await api<SchoolClass>("classes/", { method: "POST", body: { name: name.trim(), order: Number(order || data.classes.length + 1) } });
+    const made = await api<SchoolClass>("classes/", { method: "POST", body: { name: name.trim(), order: orderFor(name, data.classes) } });
     setCreated(made);
     setAt(1);
   });
@@ -163,18 +182,10 @@ export function NewClassWizard({ open, onClose, data }: { open: boolean; onClose
       <Enter key={at}>
         {at === 0 && (
           <Stack gap={14}>
-            <Guideline title="Guidelines for naming a class">
-              <Bullets items={[
-                "Use the name parents know, such as Grade 6 or Class 6, and keep one style for the whole school.",
-                "A class is the grade; sections (6-A, 6-B) come next. Do not put the section in the class name.",
-                "Order sets where it sits in lists and which class students are promoted to: Grade 6 after Grade 5.",
-              ]} />
-            </Guideline>
+            <Txt size="sm" soft>We picked the next class for you. Change it if needed.</Txt>
             {!data.year && <Alert tone="warn" title="Set the academic year first">Sections belong to a year. Add the current year in Step 1 on this page, then come back.</Alert>}
-            <Grid cols={3} gap={10}>
-              <Span span={2}><Field label="Class name" placeholder="Grade 6" value={name} onChangeText={setName} autoFocus /></Span>
-              <Field label="Order" keyboardType="number-pad" placeholder={String(data.classes.length + 1)} value={order} onChangeText={setOrder} />
-            </Grid>
+            <Field label="Class name" placeholder="Grade 6" value={name} onChangeText={setName} autoFocus
+              hint={name.trim() ? `Order ${orderFor(name, data.classes)}, set from the class number.` : undefined} />
             <Button iconRight={ArrowRight} busy={busy} disabled={!name.trim() || !data.year} onPress={saveName} style={{ alignSelf: "flex-end" }}>Create class</Button>
           </Stack>
         )}
