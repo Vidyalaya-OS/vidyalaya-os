@@ -180,7 +180,7 @@ SIMPLE_JWT = {
 # both on.
 DEMO_DATA_FILE = Path(env("DEMO_DATA_FILE", BASE_DIR / "config" / "demo_data.json"))
 DEMO_AUTOLOAD = env_bool("DEMO_AUTOLOAD", DEMO_MODE)
-DEMO_LOGINS_VISIBLE = env_bool("DEMO_LOGINS_VISIBLE", DEBUG or DEMO_MODE)
+DEMO_LOGINS_VISIBLE = env_bool("DEMO_LOGINS_VISIBLE", DEMO_MODE)
 
 # Choices offered in the web app's forms (apps/core/catalog.py). Leave empty
 # to use the built-in lists, or give comma-separated values.

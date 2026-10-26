@@ -21,10 +21,10 @@ services:
         generateValue: true
       - key: DJANGO_DEBUG
         value: "false"
-      # Public demo: loads the demo data on every start, shows the demo logins
-      # and shows parent login codes for the demo accounts on screen.
+      # Real school data: no demo data, no demo logins. Set "true" only for a
+      # public demo, which reloads the demo data on every start.
       - key: DEMO_MODE
-        value: "true"
+        value: "false"
       # Several people try the demo logins at once during a presentation.
       - key: LOGIN_THROTTLE_RATE
         value: "60/min"

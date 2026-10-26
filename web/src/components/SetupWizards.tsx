@@ -22,6 +22,19 @@ function message(e: unknown) {
   return e instanceof ApiError ? e.message : "Could not reach the server. Check your connection and try again.";
 }
 
+/** The next class to add, following the school's naming: Grade 1, Grade 2…
+ * It fills a gap first, so a deleted Grade 3 is offered again. */
+export function nextClass(classes: SchoolClass[]) {
+  const named = classes.map((c) => c.name.match(/^(.*?)\s*(\d+)$/)).filter((m): m is RegExpMatchArray => !!m);
+  const prefix = named[0]?.[1].trim() || "Grade";
+  const taken = new Set(named.filter((m) => m[1].trim() === prefix).map((m) => Number(m[2])));
+  let n = 1;
+  while (taken.has(n)) n++;
+  return { name: `${prefix} ${n}`, order: n, prefix };
+}
+
+const DEFAULT_SECTIONS = ["A", "B", "C"].map((name) => ({ name, teacher: "" }));
+
 /** Numbered steps across the top of a wizard. */
 function Stepper({ steps, at }: { steps: string[]; at: number }) {
   return (
@@ -88,18 +101,19 @@ export function NewClassWizard({ open, onClose, data }: { open: boolean; onClose
   const [at, setAt] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [name, setName] = useState("");
-  const [order, setOrder] = useState("");
+  const suggested = nextClass(data.classes);
+  const [name, setName] = useState(suggested.name);
+  const [order, setOrder] = useState(String(suggested.order));
   const [created, setCreated] = useState<SchoolClass | null>(null);
-  const [sectionRows, setSectionRows] = useState<{ name: string; teacher: string }[]>([{ name: "A", teacher: "" }]);
+  const [sectionRows, setSectionRows] = useState<{ name: string; teacher: string }[]>(DEFAULT_SECTIONS);
   const [madeSections, setMadeSections] = useState<Section[]>([]);
   const [chosen, setChosen] = useState<string[]>([]);
   const [allocation, setAllocation] = useState<Record<string, string>>({});
   const toast = useToast();
 
   const reset = () => {
-    setAt(0); setError(null); setName(""); setOrder(""); setCreated(null);
-    setSectionRows([{ name: "A", teacher: "" }]); setMadeSections([]); setChosen([]); setAllocation({});
+    setAt(0); setError(null); setCreated(null);
+    setSectionRows(DEFAULT_SECTIONS); setMadeSections([]); setChosen([]); setAllocation({});
   };
   const close = () => {
     if (created) data.reload();
@@ -156,14 +170,7 @@ export function NewClassWizard({ open, onClose, data }: { open: boolean; onClose
 
       {at === 0 && (
         <form onSubmit={(e) => { e.preventDefault(); saveName(); }} className="space-y-4">
-          <Guideline>
-            <p className="font-semibold">Guidelines for naming a class</p>
-            <ul className="mt-1 list-disc space-y-0.5 pl-5 text-soft">
-              <li>Use the name parents know, such as <b className="text-ink">Grade 6</b> or <b className="text-ink">Class 6</b>, and keep one style for the whole school.</li>
-              <li>A class is the grade; sections (6-A, 6-B) come next. Do not put the section in the class name.</li>
-              <li>Order sets where it sits in lists and which class students are promoted to: Grade 6 after Grade 5.</li>
-            </ul>
-          </Guideline>
+          <p className="text-sm text-soft">We picked the next class for you. Change it if needed.</p>
           {!data.year && <Alert tone="warn" title="Set the academic year first">Sections belong to a year. Add the current year in Step 1 on this page, then come back.</Alert>}
           <div className="grid gap-3 sm:grid-cols-3">
             <Field label="Class name" placeholder="Grade 6" required value={name} onChange={(e) => setName(e.target.value)} className="sm:col-span-2" autoFocus />
