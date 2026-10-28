@@ -67,6 +67,13 @@ class OnlinePaymentTests(ApiTestCase):
         self.browser.post(f"/api/fees/online/simulator/paynow/{token}", {"outcome": "paid"})
         self.assertEqual(len(self.payments()), 1)
 
+    def test_the_mobile_app_gets_sent_back_to_itself(self):
+        app = "vidyalaya://app/my/fees"
+        self.start(return_url=app)
+        done = self.browser.post(f"/api/fees/online/simulator/paynow/{self.op().checkout_token}", {"outcome": "paid"})
+        self.assertEqual(done.status_code, 302)
+        self.assertTrue(done["Location"].startswith(f"{app}?online_payment="))
+
     def test_without_dues_it_pays_everything_left(self):
         self.assertEqual(self.start().data["amount"], "8000.00")
 

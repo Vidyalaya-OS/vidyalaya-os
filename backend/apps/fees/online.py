@@ -13,6 +13,7 @@
 import json
 import logging
 import secrets
+from urllib.parse import urlsplit
 
 from django.conf import settings
 from django.db import transaction
@@ -64,10 +65,20 @@ def return_url_allowed(url):
     return any(url.startswith(prefix) for prefix in settings.PAYMENT_RETURN_URLS)
 
 
+class AppRedirect(HttpResponseRedirect):
+    """A redirect that may also open the mobile app (vidyalaya://, exp://).
+    Django allows only http(s) by default; the address was checked against
+    PAYMENT_RETURN_URLS when the payment started."""
+
+    @property
+    def allowed_schemes(self):
+        return ["http", "https", *(urlsplit(u).scheme for u in settings.PAYMENT_RETURN_URLS)]
+
+
 def back_to_app(op):
     """The app page the parent started from, with the result attached."""
     sep = "&" if "?" in op.return_url else "?"
-    return HttpResponseRedirect(f"{op.return_url}{sep}online_payment={op.pk}&status={op.status}")
+    return AppRedirect(f"{op.return_url}{sep}online_payment={op.pk}&status={op.status}")
 
 
 @transaction.atomic
