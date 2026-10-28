@@ -8,7 +8,7 @@ from apps.accounts import views as accounts
 from apps.attendance import views as attendance
 from apps.core import views as core
 from apps.exams import views as exams
-from apps.fees import views as fees
+from apps.fees import online, views as fees
 from apps.homework import views as homework
 from apps.dashboards import views as dashboards
 from apps.people import imports, views as people
@@ -89,6 +89,14 @@ api = [
     path("fees/balances", fees.BalancesView.as_view(), name="fee-balances"),
     path("fees/defaulters", fees.DefaultersView.as_view(), name="fee-defaulters"),
     path("fees/summary", fees.FeeSummaryView.as_view(), name="fee-summary"),
+    path("fees/online/payments", online.OnlinePaymentsView.as_view(), name="online-payments"),
+    path("fees/online/payments/<uuid:pk>", online.OnlinePaymentView.as_view(), name="online-payment"),
+    path("fees/online/checkout/<str:slug>/<str:token>", online.checkout_page, name="online-checkout"),
+    path("fees/online/razorpay/callback/<str:slug>/<str:token>", online.razorpay_callback, name="razorpay-callback"),
+    path("fees/online/razorpay/webhook", online.razorpay_webhook, name="razorpay-webhook"),
+    path("fees/online/juspay/return/<str:slug>/<str:token>", online.juspay_return, name="juspay-return"),
+    path("fees/online/juspay/webhook", online.juspay_webhook, name="juspay-webhook"),
+    path("fees/online/simulator/<str:slug>/<str:token>", online.simulator, name="payment-simulator"),
     path("", include(router.urls)),
 ]
 

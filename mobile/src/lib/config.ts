@@ -16,6 +16,8 @@ export type AppConfig = {
   invite_valid_days: number;
   login_code: { digits: number; valid_minutes: number; roles: string[] };
   demo: { password: string; logins: { role: string; label: string; email: string }[]; codes_on_screen?: boolean } | null;
+  /** Gateways parents can pay fees with. Empty when online payment is off. */
+  online_payments: { key: string; label: string; test_mode: boolean }[];
 };
 
 export const DEFAULT_CONFIG: AppConfig = {
@@ -46,6 +48,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   invite_valid_days: 7,
   login_code: { digits: 6, valid_minutes: 10, roles: ["parent"] },
   demo: null,
+  online_payments: [],
 };
 
 let cached: AppConfig | null = null;

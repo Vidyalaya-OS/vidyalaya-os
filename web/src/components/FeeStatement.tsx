@@ -1,12 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
-import { Banknote, CalendarClock, CircleCheckBig, Landmark, Receipt, ReceiptText, Smartphone, Wallet } from "lucide-react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useState } from "react";
+import { Banknote, CalendarClock, CircleCheckBig, CreditCard, Landmark, Lock, Receipt, ReceiptText, Smartphone, Wallet } from "lucide-react";
 import { useDialog } from "@/components/dialog";
 import { useToast } from "@/components/toast";
-import { Alert, Badge, Button, Card, DataTable, Empty, ErrorState, Field, Loading, Select, Stat, cx } from "@/components/ui";
+import { Alert, Badge, Button, Card, Checkbox, DataTable, Empty, ErrorState, Field, Loading, Select, Stat, cx } from "@/components/ui";
 import { api } from "@/lib/api";
+import { useAppConfig } from "@/lib/config";
+import { useSession } from "@/lib/session";
 import { formatDate, money, todayIso } from "@/lib/format";
 import { FeeHead, FeeStatement as Statement } from "@/lib/types";
 import { useApi } from "@/lib/useApi";
@@ -26,6 +29,9 @@ export function FeeStatement({ studentId, isAdmin }: { studentId: string; isAdmi
   const data = useApi<Statement>(`fees/students/${studentId}`);
   const toast = useToast();
   const dialog = useDialog();
+  const { hasRole } = useSession();
+  const { online_payments: gateways } = useAppConfig();
+  const canPay = !isAdmin && hasRole("parent") && gateways.length > 0;
   if (data.error && !data.data) return <ErrorState message={data.error} onRetry={data.reload} />;
   if (!data.data) return <Loading variant="stats" />;
   const s = data.data;
@@ -43,7 +49,9 @@ export function FeeStatement({ studentId, isAdmin }: { studentId: string; isAdmi
         <Stat label="Overdue" value={money(s.totals.overdue, cur)} tone={Number(s.totals.overdue) > 0 ? "bad" : undefined}
           hint={s.totals.next_due ? `Next: ${money(s.totals.next_due.remaining, cur)} by ${formatDate(s.totals.next_due.due_date)}` : undefined} />
       </div>
-      {!isAdmin && <FamilyBanner s={s} />}
+      {!isAdmin && <Suspense><PaymentResult /></Suspense>}
+      {!isAdmin && <FamilyBanner s={s} online={canPay} />}
+      {canPay && Number(s.totals.remaining) > 0 && <PayOnline key={s.totals.remaining} s={s} studentId={studentId} gateways={gateways} />}
       {isAdmin && Number(s.totals.remaining) > 0 && (
         <RecordPayment key={s.totals.remaining} studentId={studentId} remaining={s.totals.remaining} overdue={s.totals.overdue} currency={cur} onDone={(receipt) => done(`Payment recorded. Receipt ${receipt}.`)} />
       )}
@@ -229,7 +237,7 @@ function AddCharge({ studentId, onDone }: { studentId: string; onDone: () => voi
 }
 
 /** For students and parents: the one thing to know, in plain words. */
-function FamilyBanner({ s }: { s: Statement }) {
+function FamilyBanner({ s, online }: { s: Statement; online: boolean }) {
   const cur = s.currency;
   if (Number(s.totals.due) === 0) return null;
   if (Number(s.totals.remaining) <= 0) {
@@ -247,8 +255,84 @@ function FamilyBanner({ s }: { s: Statement }) {
       <CalendarClock className={cx("size-10 shrink-0", overdue ? "text-red-600" : "text-amber-600")} aria-hidden />
       <div className="min-w-0 flex-1">
         <p className="text-lg font-bold">{overdue ? `${money(s.totals.overdue, cur)} is overdue` : next ? `Next: ${money(next.remaining, cur)} by ${formatDate(next.due_date)}` : `${money(s.totals.remaining, cur)} still to pay`}</p>
-        <p className="text-sm text-soft">Pay at the school office; your receipt then appears here. {money(s.totals.remaining, cur)} is left for {s.academic_year_name}.</p>
+        <p className="text-sm text-soft">{online ? "Pay online below, or at the school office." : "Pay at the school office; your receipt then appears here."} {money(s.totals.remaining, cur)} is left for {s.academic_year_name}.</p>
       </div>
     </div>
   );
+}
+
+type Gateway = { key: string; label: string; test_mode: boolean };
+
+/** Parents choose which fees to pay and go to the payment gateway. */
+function PayOnline({ s, studentId, gateways }: { s: Statement; studentId: string; gateways: Gateway[] }) {
+  const toast = useToast();
+  const open = s.dues.filter((d) => Number(d.remaining) > 0);
+  const [picked, setPicked] = useState<string[]>(open.map((d) => d.id));
+  const [busy, setBusy] = useState<string | null>(null);
+  const total = open.filter((d) => picked.includes(d.id)).reduce((n, d) => n + Number(d.remaining), 0);
+  const cur = s.currency;
+
+  const pay = async (gateway: string) => {
+    setBusy(gateway);
+    try {
+      const res = await api<{ checkout_url: string }>("fees/online/payments", {
+        method: "POST",
+        body: { student: studentId, dues: picked, gateway, return_url: `${window.location.origin}${window.location.pathname}` },
+      });
+      window.location.assign(res.checkout_url);
+    } catch (e) {
+      toast.error(e);
+      setBusy(null);
+    }
+  };
+
+  return (
+    <Card title="Pay online" icon={<CreditCard aria-hidden />} className="border-brand/30"
+      actions={gateways.some((g) => g.test_mode) ? <Badge tone="warn">Test mode, no real money</Badge> : undefined}>
+      <ul className="mb-4 divide-y divide-line rounded-2xl border border-line">
+        {open.map((d) => (
+          <li key={d.id} className="flex items-center justify-between gap-3 px-3">
+            <Checkbox
+              label={<span><span className="font-medium">{d.name}</span> <span className="text-soft">· due {formatDate(d.due_date)}</span>{d.is_overdue && <> <Badge tone="bad">Overdue</Badge></>}</span>}
+              checked={picked.includes(d.id)}
+              onChange={(e) => setPicked((p) => (e.target.checked ? [...p, d.id] : p.filter((x) => x !== d.id)))}
+            />
+            <span className="shrink-0 font-semibold tabular-nums">{money(d.remaining, cur)}</span>
+          </li>
+        ))}
+      </ul>
+      <div className="flex flex-wrap items-center gap-3">
+        {gateways.map((g, i) => (
+          <Button key={g.key} variant={i === 0 ? "primary" : "secondary"} size="lg" busy={busy === g.key} disabled={total <= 0 || (busy !== null && busy !== g.key)} onClick={() => pay(g.key)}>
+            <Lock aria-hidden /> Pay {money(total, cur)}{gateways.length > 1 ? ` with ${g.label}` : ""}
+          </Button>
+        ))}
+        <span className="text-xs text-soft">UPI, cards and net banking. The receipt appears here straight away.</span>
+      </div>
+    </Card>
+  );
+}
+
+type OnlineResult = { id: string; status: "created" | "paid" | "failed" | "needs_review"; amount: string; currency: string; error: string; payment: string | null; receipt_no: string | null };
+
+/** After the gateway sends the parent back: what happened, in one line. */
+function PaymentResult() {
+  const params = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  const id = params.get("online_payment");
+  const result = useApi<OnlineResult>(id ? `fees/online/payments/${id}` : null);
+  if (!id || !result.data) return null;
+  const r = result.data;
+  const close = <button className="ml-2 font-medium underline" onClick={() => router.replace(pathname)}>Dismiss</button>;
+  if (r.status === "paid") {
+    return (
+      <Alert tone="success" title={`${money(r.amount, r.currency)} paid. Thank you!`}>
+        Receipt {r.payment ? <Link className="font-medium underline" href={`/app/fees/receipts/${r.payment}`}>{r.receipt_no}</Link> : r.receipt_no} is ready.{close}
+      </Alert>
+    );
+  }
+  if (r.status === "needs_review") return <Alert tone="warn" title="Payment received">{r.error}{close}</Alert>;
+  if (r.status === "failed") return <Alert title="The payment did not go through">{r.error || "No money was taken. You can try again."}{close}</Alert>;
+  return <Alert tone="info" title="Waiting for the bank">This can take a minute. Refresh this page to check again.{close}</Alert>;
 }

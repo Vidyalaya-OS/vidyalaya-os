@@ -210,6 +210,27 @@ EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", "")
 EMAIL_USE_TLS = env_bool("EMAIL_USE_TLS", True)
 EMAIL_TIMEOUT = 20
 
+# Online fee payments by parents. Each gateway is on once its keys are set.
+# Razorpay test keys (rzp_test_...) and JUSPAY_ENV=sandbox take no real money.
+RAZORPAY_KEY_ID = env("RAZORPAY_KEY_ID", "")
+RAZORPAY_KEY_SECRET = env("RAZORPAY_KEY_SECRET", "")
+RAZORPAY_WEBHOOK_SECRET = env("RAZORPAY_WEBHOOK_SECRET", "")
+JUSPAY_ENV = env("JUSPAY_ENV", "sandbox")
+JUSPAY_MERCHANT_ID = env("JUSPAY_MERCHANT_ID", "")
+JUSPAY_API_KEY = env("JUSPAY_API_KEY", "")
+JUSPAY_PAYMENT_PAGE_CLIENT_ID = env("JUSPAY_PAYMENT_PAGE_CLIENT_ID", "") or JUSPAY_MERCHANT_ID
+JUSPAY_WEBHOOK_USERNAME = env("JUSPAY_WEBHOOK_USERNAME", "")
+JUSPAY_WEBHOOK_PASSWORD = env("JUSPAY_WEBHOOK_PASSWORD", "")
+# A built-in pretend gateway with "Pay" and "Fail" buttons, for trying the
+# flow with no gateway account. It records real receipts, so it is only ever
+# on in development.
+PAYMENT_SIMULATOR = DEBUG and env_bool("PAYMENT_SIMULATOR", True)
+# The API's public address, for gateway callbacks. Found from the request when empty.
+PUBLIC_API_URL = env("PUBLIC_API_URL", env("RENDER_EXTERNAL_URL", "")).rstrip("/")
+# Where a finished payment may send the parent back to: the web app and the mobile app.
+PAYMENT_RETURN_URLS = env_list("PAYMENT_RETURN_URLS", f"{WEB_APP_URL},vidyalaya://,exp://")
+PAYMENT_TIMEOUT = 20
+
 # Origins allowed to call the API from a browser (the web app).
 CORS_ALLOWED_ORIGINS = env_list("CORS_ALLOWED_ORIGINS", "http://localhost:3000")
 

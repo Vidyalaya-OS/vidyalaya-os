@@ -1,7 +1,11 @@
-import { Banknote, CalendarClock, CircleCheckBig, Landmark, Plus, Receipt, ReceiptText, Smartphone, Wallet } from "lucide-react-native";
+import * as Linking from "expo-linking";
+import * as WebBrowser from "expo-web-browser";
+import { Banknote, CalendarClock, CircleCheckBig, CreditCard, Landmark, Lock, Plus, Receipt, ReceiptText, Smartphone, Wallet } from "lucide-react-native";
 import { useState } from "react";
 import { View } from "react-native";
 import { api } from "@/lib/api";
+import { useAppConfig } from "@/lib/config";
+import { useSession } from "@/lib/session";
 import { formatDate, money, todayIso } from "@/lib/format";
 import type { Icon } from "@/lib/nav";
 import { useTheme } from "@/lib/theme";
@@ -11,7 +15,7 @@ import { compact, useForm } from "@/lib/useForm";
 import { DateField } from "./Calendar";
 import { useDialog } from "./dialog";
 import { useToast } from "./toast";
-import { Alert, Badge, Button, Card, Chip, DataTable, Empty, Enter, ErrorState, Field, Grid, LinkText, Loading, Press, Row, Select, Stack, Stat, Txt } from "./ui";
+import { Alert, Badge, Button, Card, Checkbox, Chip, DataTable, Empty, Enter, ErrorState, Field, Grid, LinkText, Loading, Press, Row, Select, Stack, Stat, Txt } from "./ui";
 
 export const MODES = [
   { key: "cash", label: "Cash" },
@@ -28,6 +32,9 @@ export function FeeStatement({ studentId, isAdmin }: { studentId: string; isAdmi
   const data = useApi<Statement>(`fees/students/${studentId}`);
   const toast = useToast();
   const dialog = useDialog();
+  const { hasRole } = useSession();
+  const { online_payments: gateways } = useAppConfig();
+  const canPay = !isAdmin && hasRole("parent") && gateways.length > 0;
   if (data.error && !data.data) return <ErrorState message={data.error} onRetry={data.reload} />;
   if (!data.data) return <Loading variant="stats" />;
   const s = data.data;
@@ -70,7 +77,8 @@ export function FeeStatement({ studentId, isAdmin }: { studentId: string; isAdmi
         <Stat label="Overdue" value={money(s.totals.overdue, cur)} tone={Number(s.totals.overdue) > 0 ? "bad" : undefined}
           hint={s.totals.next_due ? `Next: ${money(s.totals.next_due.remaining, cur)} by ${formatDate(s.totals.next_due.due_date)}` : undefined} />
       </Grid>
-      {!isAdmin && <FamilyBanner s={s} />}
+      {!isAdmin && <FamilyBanner s={s} online={canPay} />}
+      {canPay && Number(s.totals.remaining) > 0 && <PayOnline key={s.totals.remaining} s={s} studentId={studentId} gateways={gateways} onDone={data.reload} />}
       {isAdmin && Number(s.totals.remaining) > 0 && (
         <RecordPayment key={s.totals.remaining} studentId={studentId} remaining={s.totals.remaining} overdue={s.totals.overdue} currency={cur} onDone={(receipt) => done(`Payment recorded. Receipt ${receipt}.`)} />
       )}
@@ -201,7 +209,7 @@ function AddCharge({ studentId, onDone }: { studentId: string; onDone: () => voi
 }
 
 /** For students and parents: the one thing to know, in plain words. */
-function FamilyBanner({ s }: { s: Statement }) {
+function FamilyBanner({ s, online }: { s: Statement; online: boolean }) {
   const { tone } = useTheme();
   const cur = s.currency;
   if (Number(s.totals.due) === 0) return null;
@@ -227,10 +235,79 @@ function FamilyBanner({ s }: { s: Statement }) {
         <CalendarClock size={38} color={t.solid} />
         <View style={{ flex: 1 }}>
           <Txt size="lg" weight="bold">{overdue ? `${money(s.totals.overdue, cur)} is overdue` : next ? `Next: ${money(next.remaining, cur)} by ${formatDate(next.due_date)}` : `${money(s.totals.remaining, cur)} still to pay`}</Txt>
-          <Txt size="sm" soft>Pay at the school office; your receipt then appears here. {money(s.totals.remaining, cur)} is left for {s.academic_year_name}.</Txt>
+          <Txt size="sm" soft>{online ? "Pay online below, or at the school office." : "Pay at the school office; your receipt then appears here."} {money(s.totals.remaining, cur)} is left for {s.academic_year_name}.</Txt>
         </View>
       </Row>
     </Enter>
   );
 }
 
+
+type Gateway = { key: string; label: string; test_mode: boolean };
+type OnlineResult = { id: string; status: "created" | "paid" | "failed" | "needs_review"; amount: string; currency: string; error: string; receipt_no: string | null };
+
+/** Parents choose which fees to pay, pay in the gateway's page, and come back to a receipt. */
+function PayOnline({ s, studentId, gateways, onDone }: { s: Statement; studentId: string; gateways: Gateway[]; onDone: () => void }) {
+  const toast = useToast();
+  const open = s.dues.filter((d) => Number(d.remaining) > 0);
+  const [picked, setPicked] = useState<string[]>(open.map((d) => d.id));
+  const [busy, setBusy] = useState<string | null>(null);
+  const [result, setResult] = useState<OnlineResult | null>(null);
+  const total = open.filter((d) => picked.includes(d.id)).reduce((n, d) => n + Number(d.remaining), 0);
+  const cur = s.currency;
+
+  const pay = async (gateway: string) => {
+    setBusy(gateway);
+    setResult(null);
+    try {
+      const returnUrl = Linking.createURL("/app/my/fees");
+      const started = await api<OnlineResult & { checkout_url: string }>("fees/online/payments", {
+        method: "POST", body: { student: studentId, dues: picked, gateway, return_url: returnUrl },
+      });
+      await WebBrowser.openAuthSessionAsync(started.checkout_url, returnUrl);
+      // Whatever the browser said, ask the school's server how it went.
+      const r = await api<OnlineResult>(`fees/online/payments/${started.id}`);
+      setResult(r);
+      if (r.status === "paid") {
+        toast.success(`${money(r.amount, r.currency)} paid. Receipt ${r.receipt_no}.`);
+        onDone();
+      }
+    } catch (e) {
+      toast.error(e);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <Card title="Pay online" icon={CreditCard} actions={gateways.some((g) => g.test_mode) ? <Badge tone="warn">Test mode, no real money</Badge> : undefined}>
+      <Stack gap={12}>
+        {result && result.status !== "paid" && (
+          result.status === "needs_review" ? <Alert tone="warn" title="Payment received">{result.error}</Alert>
+            : result.status === "failed" ? <Alert title="The payment did not go through">{result.error || "No money was taken. You can try again."}</Alert>
+              : <Alert tone="info" title="Waiting for the bank">This can take a minute. Pull down to refresh.</Alert>
+        )}
+        <Stack gap={2}>
+          {open.map((d) => (
+            <Row key={d.id} gap={10} justify="space-between">
+              <Checkbox
+                style={{ flex: 1 }}
+                label={<View style={{ flex: 1 }}><Txt size="sm" weight="medium">{d.name}</Txt><Txt size="xs" soft>{`Due ${formatDate(d.due_date)}${d.is_overdue ? " · overdue" : ""}`}</Txt></View>}
+                checked={picked.includes(d.id)}
+                onChange={(on) => setPicked((p) => (on ? [...p, d.id] : p.filter((x) => x !== d.id)))}
+              />
+              <Txt size="sm" weight="semibold">{money(d.remaining, cur)}</Txt>
+            </Row>
+          ))}
+        </Stack>
+        {gateways.map((g, i) => (
+          <Button key={g.key} full size="lg" icon={Lock} variant={i === 0 ? "primary" : "secondary"} busy={busy === g.key}
+            disabled={total <= 0 || (busy !== null && busy !== g.key)} onPress={() => pay(g.key)}>
+            {`Pay ${money(total, cur)}${gateways.length > 1 ? ` with ${g.label}` : ""}`}
+          </Button>
+        ))}
+        <Txt size="xs" soft style={{ textAlign: "center" }}>UPI, cards and net banking. The receipt appears here straight away.</Txt>
+      </Stack>
+    </Card>
+  );
+}

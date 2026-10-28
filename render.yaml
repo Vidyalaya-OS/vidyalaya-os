@@ -38,3 +38,22 @@ services:
         sync: false
       - key: DEFAULT_FROM_EMAIL
         sync: false
+      - key: RAZORPAY_KEY_ID
+        sync: false
+      - key: RAZORPAY_KEY_SECRET
+        sync: false
+      - key: RAZORPAY_WEBHOOK_SECRET
+        sync: false
+      - key: JUSPAY_MERCHANT_ID
+        sync: false
+      - key: JUSPAY_API_KEY
+        sync: false
+      - key: JUSPAY_PAYMENT_PAGE_CLIENT_ID
+        sync: false
+      - key: JUSPAY_WEBHOOK_USERNAME
+        sync: false
+      - key: JUSPAY_WEBHOOK_PASSWORD
+        sync: false
+      # sandbox until the school goes live with Juspay, then production.
+      - key: JUSPAY_ENV
+        value: sandbox

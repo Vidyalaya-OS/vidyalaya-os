@@ -34,7 +34,7 @@ export default function FeesPage() {
   const currency = summary.data?.currency ?? "INR";
   return (
     <>
-      <PageHeader title="Fees" subtitle={`Payments are recorded here; online payment comes later.${summary.data ? ` ${summary.data.academic_year}.` : ""}`} />
+      <PageHeader title="Fees" subtitle={`Office payments are recorded here, and parents' online payments appear with them.${summary.data ? ` ${summary.data.academic_year}.` : ""}`} />
       <Tabs<Tab> value={tab} onChange={setTab} tabs={[
         { key: "overview", label: "Overview" },
         { key: "students", label: "Students" },

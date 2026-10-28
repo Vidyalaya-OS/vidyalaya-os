@@ -35,6 +35,7 @@ def _setting(name, default):
 def app_config():
     """Public settings for the web app. Safe to show anyone: nothing here is
     about a school or a person."""
+    from apps.fees.gateways import available
     from apps.fees.models import Payment
 
     data = {
@@ -50,6 +51,8 @@ def app_config():
         "password_reset_valid_minutes": settings.PASSWORD_RESET_VALID_MINUTES,
         "login_code": {"digits": 6, "valid_minutes": OneTimeCode.VALID_MINUTES, "roles": [Role.PARENT]},
         "demo": None,
+        # Gateways parents can pay fees with; empty when online payment is off.
+        "online_payments": [{"key": g.key, "label": g.label, "test_mode": g.test_mode()} for g in available()],
     }
     if getattr(settings, "DEMO_LOGINS_VISIBLE", False):
         from .demo import demo_logins

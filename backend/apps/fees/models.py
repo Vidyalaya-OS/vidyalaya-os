@@ -146,3 +146,49 @@ class Counter(TenantModel):
         counter.value += 1
         counter.save(update_fields=["value", "updated_at"])
         return counter.value
+
+
+class OnlinePayment(TenantModel):
+    """A parent's attempt to pay dues through a payment gateway. When the
+    gateway confirms it, a normal Payment with a receipt is recorded."""
+
+    class Provider(models.TextChoices):
+        RAZORPAY = "razorpay", "Razorpay"
+        JUSPAY = "juspay", "Juspay"
+        SIMULATOR = "simulator", "Test gateway"
+
+    class Status(models.TextChoices):
+        CREATED = "created", "Waiting for payment"
+        PAID = "paid", "Paid"
+        FAILED = "failed", "Failed"
+        NEEDS_REVIEW = "needs_review", "Paid, needs the office"
+
+    student = models.ForeignKey("people.Student", on_delete=models.PROTECT, related_name="online_payments")
+    academic_year = models.ForeignKey("academics.AcademicYear", on_delete=models.PROTECT, related_name="+")
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="+")
+    provider = models.CharField(max_length=20, choices=Provider.choices)
+    amount = models.BigIntegerField()
+    currency = models.CharField(max_length=3, default="INR")
+    # [{"due": "<id>", "amount": 50000}, ...]: what this payment is for.
+    dues = models.JSONField(default=list)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.CREATED)
+    checkout_token = models.CharField(max_length=64, unique=True)
+    order_id = models.CharField(max_length=64, blank=True, help_text="The gateway's order id.")
+    gateway_payment_id = models.CharField(max_length=100, blank=True)
+    checkout_url = models.URLField(max_length=1000, blank=True, help_text="The gateway's own payment page, if any.")
+    return_url = models.CharField(max_length=500)
+    error = models.CharField(max_length=300, blank=True)
+    payment = models.OneToOneField(Payment, on_delete=models.PROTECT, null=True, blank=True, related_name="online")
+    paid_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "online_payments"
+        ordering = ["-created_at"]
+        constraints = [
+            models.CheckConstraint(condition=Q(amount__gt=0), name="online_payment_amount_positive"),
+            models.UniqueConstraint(fields=["provider", "order_id"], condition=~Q(order_id=""),
+                                    name="unique_gateway_order"),
+        ]
+
+    def __str__(self):
+        return f"{self.provider} {self.order_id or self.pk}"
